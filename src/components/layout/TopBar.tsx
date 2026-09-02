@@ -23,6 +23,10 @@ import {
   RotateCw,
   FolderKanban,
   Award,
+  PanelRightClose,
+  PanelRightOpen,
+  PanelBottomClose,
+  PanelBottomOpen,
 } from 'lucide-react';
 import { useChartStore } from '@/store/chart-store';
 import { useReplayStore } from '@/store/replay-store';
@@ -77,6 +81,10 @@ export function TopBar() {
   const setPropFirmModalOpen = useUIStore((s) => s.setPropFirmModalOpen);
   const isFullscreen = useUIStore((s) => s.isFullscreen);
   const toggleFullscreen = useUIStore((s) => s.toggleFullscreen);
+  const showRightSidebar = useUIStore((s) => s.showRightSidebar);
+  const toggleRightSidebar = useUIStore((s) => s.toggleRightSidebar);
+  const showBottomPanel = useUIStore((s) => s.showBottomPanel);
+  const toggleBottomPanel = useUIStore((s) => s.toggleBottomPanel);
 
   useEffect(() => {
     marketDataService.getSymbol(activeSymbol).then(setCurrentSymbolObj);
@@ -332,6 +340,33 @@ export function TopBar() {
             className="p-1.5 rounded-lg bg-[#151c2d] hover:bg-[#1d273d] border border-[#1d273d] text-gray-400 hover:text-white transition cursor-pointer"
           >
             <Search className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Panel Toggles (Bottom Panel & Right Sidebar) */}
+          <button
+            onClick={toggleBottomPanel}
+            title={showBottomPanel ? 'Hide Bottom Workspace Panel' : 'Show Bottom Workspace Panel'}
+            className={cn(
+              'p-1.5 rounded-lg border transition cursor-pointer',
+              showBottomPanel
+                ? 'bg-[#151c2d] border-[#1d273d] text-blue-400 hover:text-white'
+                : 'bg-[#101726] border-[#182338] text-gray-500 hover:text-gray-300'
+            )}
+          >
+            {showBottomPanel ? <PanelBottomClose className="w-3.5 h-3.5" /> : <PanelBottomOpen className="w-3.5 h-3.5" />}
+          </button>
+
+          <button
+            onClick={toggleRightSidebar}
+            title={showRightSidebar ? 'Hide Right Order Panel (Maximize Chart)' : 'Show Right Order Panel'}
+            className={cn(
+              'p-1.5 rounded-lg border transition cursor-pointer',
+              showRightSidebar
+                ? 'bg-[#151c2d] border-[#1d273d] text-blue-400 hover:text-white'
+                : 'bg-[#101726] border-[#182338] text-gray-500 hover:text-gray-300'
+            )}
+          >
+            {showRightSidebar ? <PanelRightClose className="w-3.5 h-3.5" /> : <PanelRightOpen className="w-3.5 h-3.5" />}
           </button>
 
           {/* Fullscreen Toggle */}

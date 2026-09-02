@@ -107,7 +107,7 @@ export function OnChartTradingWidget() {
   if (!symbolObj) return null;
 
   return (
-    <div className="absolute top-3 left-3 z-30 flex flex-col items-start gap-1 font-mono text-xs select-none">
+    <div className="absolute top-14 left-4 z-30 flex flex-col items-start gap-1 font-mono text-xs select-none">
       {/* Main Floating Bar */}
       <div className="bg-[#0b101d]/90 backdrop-blur-md border border-[#1d273f] rounded-xl shadow-2xl p-1 flex items-center gap-1.5 text-gray-200">
         {/* SELL Button */}
