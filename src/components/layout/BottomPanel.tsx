@@ -7,6 +7,7 @@ import { useReplayStore } from '@/store/replay-store';
 import { marketDataService } from '@/lib/market-data/market-data-service';
 import { calculatePerformanceMetrics } from '@/lib/analytics/metrics-engine';
 import { exportTradesToCSV, exportPerformanceReportToJSON } from '@/lib/analytics/export-service';
+import { getRevealedEconomicEvents, type EconomicEvent } from '@/lib/calendar/economic-calendar';
 import { EquityCurveChart } from '@/components/analytics/EquityCurveChart';
 import { DrawdownChart } from '@/components/analytics/DrawdownChart';
 import { PerformanceBreakdowns } from '@/components/analytics/PerformanceBreakdowns';
@@ -24,6 +25,7 @@ import {
   BarChart2,
   BookOpen,
   Calendar,
+  Globe,
   Download,
   Flame,
   Award,
@@ -35,6 +37,9 @@ import {
   Clock,
   ArrowRight,
   Filter,
+  Play,
+  CheckCircle,
+  AlertCircle,
 } from 'lucide-react';
 
 export function BottomPanel() {
@@ -53,10 +58,11 @@ export function BottomPanel() {
   const currentIndex = useReplayStore((s) => s.currentIndex);
   const preloadCount = useReplayStore((s) => s.preloadCount);
   const jumpToTimestamp = useReplayStore((s) => s.jumpToTimestamp);
+  const togglePlayPause = useReplayStore((s) => s.togglePlayPause);
 
   const [symbolMap, setSymbolMap] = useState<Map<string, Symbol>>(new Map());
   const [tradeFilter, setTradeFilter] = useState<'all' | 'winners' | 'losers' | 'long' | 'short'>('all');
-  const [journalNotes, setJournalNotes] = useState<Record<string, { setup?: string; emotion?: string; rating?: number; note?: string }>>({});
+  const [journalNotes, setJournalNotes] = useState<Record<string, { setup?: string; emotion?: string; mistake?: string; rating?: number; note?: string }>>({});
 
   useEffect(() => {
     marketDataService.getAllSymbols().then((list) => {
@@ -74,6 +80,11 @@ export function BottomPanel() {
 
   // Quantitative Analytics Engine
   const metrics = calculatePerformanceMetrics(closedTrades, accountSettings.startingBalance);
+
+  // Economic Events strictly filtered up to current replay timestamp (Zero Lookahead)
+  const revealedEconomicEvents = useMemo(() => {
+    return getRevealedEconomicEvents(currentTs);
+  }, [currentTs]);
 
   const handleManualClose = (positionId: string, symbolId: string) => {
     const symObj = symbolMap.get(symbolId);
@@ -96,8 +107,39 @@ export function BottomPanel() {
     jumpToTimestamp(trade.entryTime, 60);
   };
 
+  // Time-based Analytics by Session
+  const sessionBreakdown = useMemo(() => {
+    let nyTrades = 0;
+    let nyPnL = 0;
+    let londonTrades = 0;
+    let londonPnL = 0;
+    let asiaTrades = 0;
+    let asiaPnL = 0;
+
+    closedTrades.forEach((t) => {
+      const d = new Date(t.entryTime);
+      const hourUTC = d.getUTCHours();
+
+      if (hourUTC >= 13 && hourUTC <= 21) {
+        // NY Session
+        nyTrades++;
+        nyPnL += t.netPnL;
+      } else if (hourUTC >= 7 && hourUTC < 13) {
+        // London Session
+        londonTrades++;
+        londonPnL += t.netPnL;
+      } else {
+        // Asia / Other
+        asiaTrades++;
+        asiaPnL += t.netPnL;
+      }
+    });
+
+    return { nyTrades, nyPnL, londonTrades, londonPnL, asiaTrades, asiaPnL };
+  }, [closedTrades]);
+
   return (
-    <div className="h-full w-full bg-[#0a0e17] border-t border-[#182338] flex flex-col overflow-hidden font-mono text-xs">
+    <div className="h-full w-full bg-[#0a0e17] border-t border-[#182338] flex flex-col overflow-hidden font-mono text-xs select-none">
       <Tabs
         value={bottomPanelTab || 'positions'}
         onValueChange={(val) => setBottomPanelTab(val as PanelTab)}
@@ -147,6 +189,14 @@ export function BottomPanel() {
             </TabsTrigger>
 
             <TabsTrigger
+              value="economic"
+              className="text-xs data-[state=active]:bg-[#141b2c] data-[state=active]:text-white text-gray-400 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 px-3 h-full flex items-center space-x-1.5 cursor-pointer"
+            >
+              <Globe className="w-3.5 h-3.5 text-amber-400" />
+              <span>Economic Releases ({revealedEconomicEvents.length})</span>
+            </TabsTrigger>
+
+            <TabsTrigger
               value="journal"
               className="text-xs data-[state=active]:bg-[#141b2c] data-[state=active]:text-white text-gray-400 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 px-3 h-full flex items-center space-x-1.5 cursor-pointer"
             >
@@ -170,10 +220,17 @@ export function BottomPanel() {
         {/* 1. POSITIONS TAB */}
         <TabsContent value="positions" className="flex-1 overflow-auto p-0 m-0">
           {positions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 py-8">
+            <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 py-6">
               <Layers className="w-7 h-7 text-gray-600 mb-1.5 opacity-50" />
               <p className="text-xs font-semibold text-gray-300">NO OPEN POSITIONS</p>
-              <p className="text-[11px] text-gray-500">Execute a Market or Limit order to start a trade.</p>
+              <p className="text-[11px] text-gray-500 mb-2">Execute a Market or Limit order to start a backtest trade.</p>
+              <button
+                onClick={togglePlayPause}
+                className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] flex items-center space-x-1 cursor-pointer transition shadow-sm"
+              >
+                <Play className="w-3 h-3 fill-current" />
+                <span>Start Replay</span>
+              </button>
             </div>
           ) : (
             <table className="w-full text-left border-collapse text-[11px]">
@@ -232,10 +289,10 @@ export function BottomPanel() {
         {/* 2. ORDERS TAB */}
         <TabsContent value="orders" className="flex-1 overflow-auto p-0 m-0">
           {orders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 py-8">
+            <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 py-6">
               <ListOrdered className="w-7 h-7 text-gray-600 mb-1.5 opacity-50" />
               <p className="text-xs font-semibold text-gray-300">NO ACTIVE ORDERS</p>
-              <p className="text-[11px] text-gray-500">Pending Limit/Stop orders will appear here.</p>
+              <p className="text-[11px] text-gray-500">Pending Limit/Stop orders will appear here during replay.</p>
             </div>
           ) : (
             <table className="w-full text-left border-collapse text-[11px]">
@@ -295,7 +352,7 @@ export function BottomPanel() {
           )}
         </TabsContent>
 
-        {/* 3. TRADES TAB (With Filters & Jump-to-Trade) */}
+        {/* 3. TRADES TAB */}
         <TabsContent value="trades" className="flex-1 overflow-auto p-0 m-0 flex flex-col">
           {/* Sub-filter bar */}
           <div className="px-3 py-1.5 bg-[#090d17] border-b border-[#182338] flex items-center justify-between">
@@ -326,7 +383,7 @@ export function BottomPanel() {
           </div>
 
           {filteredTrades.length === 0 ? (
-            <div className="flex flex-col items-center justify-center flex-1 text-center text-gray-500 py-8">
+            <div className="flex flex-col items-center justify-center flex-1 text-center text-gray-500 py-6">
               <Briefcase className="w-7 h-7 text-gray-600 mb-1.5 opacity-50" />
               <p className="text-xs font-semibold text-gray-300">NO TRADES MATCH FILTER</p>
               <p className="text-[11px] text-gray-500">Completed backtest executions will be recorded here.</p>
@@ -438,6 +495,36 @@ export function BottomPanel() {
             </div>
           </div>
 
+          {/* Time & Session Breakdown Card */}
+          <div className="p-3 bg-[#0d121f] border border-[#1b253c] rounded-xl space-y-2">
+            <span className="text-xs font-bold text-white block">Trading Session Breakdown</span>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="p-2.5 bg-[#111726] rounded-lg border border-[#1d273d]">
+                <span className="text-gray-400 text-[10px] block font-bold">New York Session (13:30 - 21:00 UTC)</span>
+                <span className={cn('text-sm font-bold block mt-0.5', sessionBreakdown.nyPnL >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
+                  {formatPnL(sessionBreakdown.nyPnL)}
+                </span>
+                <span className="text-gray-400 text-[10px]">{sessionBreakdown.nyTrades} trades</span>
+              </div>
+
+              <div className="p-2.5 bg-[#111726] rounded-lg border border-[#1d273d]">
+                <span className="text-gray-400 text-[10px] block font-bold">London Session (07:00 - 13:00 UTC)</span>
+                <span className={cn('text-sm font-bold block mt-0.5', sessionBreakdown.londonPnL >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
+                  {formatPnL(sessionBreakdown.londonPnL)}
+                </span>
+                <span className="text-gray-400 text-[10px]">{sessionBreakdown.londonTrades} trades</span>
+              </div>
+
+              <div className="p-2.5 bg-[#111726] rounded-lg border border-[#1d273d]">
+                <span className="text-gray-400 text-[10px] block font-bold">Asia / Globex Session</span>
+                <span className={cn('text-sm font-bold block mt-0.5', sessionBreakdown.asiaPnL >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
+                  {formatPnL(sessionBreakdown.asiaPnL)}
+                </span>
+                <span className="text-gray-400 text-[10px]">{sessionBreakdown.asiaTrades} trades</span>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-[#0d121f] border border-[#1b253c] rounded-xl p-3 h-52">
               <span className="text-xs font-bold text-white block mb-2">Equity Trajectory Curve</span>
@@ -456,13 +543,64 @@ export function BottomPanel() {
           <TradingCalendar trades={closedTrades} />
         </TabsContent>
 
-        {/* 6. JOURNAL TAB */}
+        {/* 6. ECONOMIC CALENDAR TAB (Zero Lookahead) */}
+        <TabsContent value="economic" className="flex-1 overflow-auto p-0 m-0">
+          {revealedEconomicEvents.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 py-6">
+              <Globe className="w-7 h-7 text-gray-600 mb-1.5 opacity-50" />
+              <p className="text-xs font-semibold text-gray-300">NO ECONOMIC EVENTS RELEASED YET</p>
+              <p className="text-[11px] text-gray-500">Events appear dynamically as replay advances through their release timestamps.</p>
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse text-[11px]">
+              <thead className="bg-[#0c101b] text-gray-400 border-b border-[#182338] sticky top-0">
+                <tr>
+                  <th className="p-2">Date / Time (UTC)</th>
+                  <th className="p-2">Currency</th>
+                  <th className="p-2">Event</th>
+                  <th className="p-2">Impact</th>
+                  <th className="p-2">Actual</th>
+                  <th className="p-2">Forecast</th>
+                  <th className="p-2">Previous</th>
+                  <th className="p-2">Analysis Note</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#161f33]">
+                {revealedEconomicEvents.map((e) => (
+                  <tr key={e.id} className="hover:bg-[#101726]">
+                    <td className="p-2 text-gray-300">{new Date(e.timestamp).toUTCString()}</td>
+                    <td className="p-2 font-bold text-white">{e.currency}</td>
+                    <td className="p-2 font-semibold text-gray-200">{e.event}</td>
+                    <td className="p-2">
+                      <span
+                        className={cn(
+                          'px-1.5 py-0.2 rounded text-[10px] font-bold',
+                          e.impact === 'HIGH'
+                            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                            : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        )}
+                      >
+                        {e.impact}
+                      </span>
+                    </td>
+                    <td className="p-2 font-bold text-white">{e.actual}</td>
+                    <td className="p-2 text-gray-400">{e.forecast}</td>
+                    <td className="p-2 text-gray-400">{e.previous}</td>
+                    <td className="p-2 text-gray-400 italic">{e.note || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </TabsContent>
+
+        {/* 7. JOURNAL TAB */}
         <TabsContent value="journal" className="flex-1 overflow-auto p-4 space-y-3 m-0">
           {closedTrades.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 py-8">
+            <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 py-6">
               <BookOpen className="w-7 h-7 text-gray-600 mb-1.5 opacity-50" />
               <p className="text-xs font-semibold text-gray-300">NO JOURNAL LOGS YET</p>
-              <p className="text-[11px] text-gray-500">Each completed trade will generate an editable journal entry.</p>
+              <p className="text-[11px] text-gray-500">Each completed trade will generate an editable journal entry for post-trade review.</p>
             </div>
           ) : (
             <div className="space-y-3 max-w-4xl">
@@ -502,10 +640,10 @@ export function BottomPanel() {
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                       <div>
-                        <label className="block text-gray-400 text-[10px] mb-1">Setup Name</label>
+                        <label className="block text-gray-400 text-[10px] mb-1">Setup / Strategy Tag</label>
                         <input
                           type="text"
-                          placeholder="e.g. Opening Range Breakout"
+                          placeholder="e.g. Opening Range Breakout, FVG"
                           value={noteState.setup ?? (t.setup || '')}
                           onChange={(e) =>
                             setJournalNotes((prev) => ({
@@ -564,7 +702,7 @@ export function BottomPanel() {
                       <label className="block text-gray-400 text-[10px] mb-1">Trade Notes &amp; Execution Review</label>
                       <textarea
                         rows={2}
-                        placeholder="Log trade rationale, key levels, slippage notes, or mistakes..."
+                        placeholder="Log trade rationale, key levels, what went well, what went wrong..."
                         value={noteState.note ?? (t.notes || '')}
                         onChange={(e) =>
                           setJournalNotes((prev) => ({

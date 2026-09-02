@@ -6,8 +6,22 @@ import { useTradingStore } from '@/store/trading-store';
 import { useReplayStore } from '@/store/replay-store';
 import { marketDataService } from '@/lib/market-data/market-data-service';
 import { ChartManager } from '@/lib/chart/chart-manager';
+import { formatCurrency, formatPnL, formatDuration } from '@/lib/utils/formatting';
 import type { Drawing, DrawingTool, DrawingPoint } from '@/types/chart';
 import type { Symbol } from '@/types/market-data';
+import type { Trade } from '@/types/trading';
+import {
+  Play,
+  Clock,
+  Bookmark,
+  FileText,
+  Ruler,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  TrendingUp,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface DrawingCanvasProps {
   chartManager: ChartManager | null;
@@ -15,15 +29,33 @@ interface DrawingCanvasProps {
   height: number;
 }
 
-type DragHandle = 'entry' | 'target' | 'stop' | 'p1' | 'p2' | null;
+type DragTarget =
+  | { type: 'position_sl'; positionId: string }
+  | { type: 'position_tp'; positionId: string }
+  | { type: 'drawing_point'; drawingId: string; pointIndex: number }
+  | { type: 'drawing_sl'; drawingId: string }
+  | { type: 'drawing_tp'; drawingId: string }
+  | null;
+
+interface ContextMenuState {
+  x: number;
+  y: number;
+  time: number;
+  price: number;
+}
 
 export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [activePoints, setActivePoints] = useState<DrawingPoint[]>([]);
   const [hoverPoint, setHoverPoint] = useState<DrawingPoint | null>(null);
-  const [draggingDrawingId, setDraggingDrawingId] = useState<string | null>(null);
-  const [draggingHandle, setDraggingHandle] = useState<DragHandle>(null);
+  const [dragTarget, setDragTarget] = useState<DragTarget>(null);
   const [symbolObj, setSymbolObj] = useState<Symbol | null>(null);
+
+  // Context Menu State
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  // Selected Trade Review Card State
+  const [selectedTradeIndex, setSelectedTradeIndex] = useState<number | null>(null);
 
   const activeSymbol = useChartStore((s) => s.activeSymbol);
   const activeTool = useChartStore((s) => s.activeTool);
@@ -36,7 +68,10 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
   const setSelectedDrawingId = useChartStore((s) => s.setSelectedDrawingId);
 
   const positions = useTradingStore((s) => s.positions);
+  const closedTrades = useTradingStore((s) => s.closedTrades);
   const updateStopLossTakeProfit = useTradingStore((s) => s.updateStopLossTakeProfit);
+
+  const jumpToTimestamp = useReplayStore((s) => s.jumpToTimestamp);
 
   useEffect(() => {
     marketDataService.getSymbol(activeSymbol).then(setSymbolObj);
@@ -66,7 +101,7 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
     [chartManager]
   );
 
-  // Main canvas render loop
+  // Main Canvas Render Loop
   const renderDrawings = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || !chartManager) return;
@@ -75,7 +110,7 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
 
     ctx.clearRect(0, 0, width, height);
 
-    // 1. Draw Active Open Positions SL / TP Lines & Live Floating P&L Badges
+    // 1. Draw Active Open Positions SL / TP Lines & Draggable Handles
     positions.forEach((pos) => {
       if (pos.symbol !== activeSymbol) return;
 
@@ -84,7 +119,7 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
         // Entry Price Line
         ctx.strokeStyle = pos.side === 'long' ? '#3b82f6' : '#ec4899';
         ctx.lineWidth = 1.5;
-        ctx.setLineDash([3, 3]);
+        ctx.setLineDash([4, 4]);
         ctx.beginPath();
         ctx.moveTo(0, entryY);
         ctx.lineTo(width, entryY);
@@ -93,13 +128,17 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
 
         // Entry Badge
         ctx.fillStyle = pos.side === 'long' ? '#3b82f6' : '#ec4899';
-        ctx.fillRect(width - 95, entryY - 9, 90, 18);
+        ctx.fillRect(width - 100, entryY - 9, 95, 18);
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 10px JetBrains Mono';
-        ctx.fillText(`${pos.side.toUpperCase()} ${pos.quantity} @ ${pos.entryPrice.toFixed(2)}`, width - 90, entryY + 4);
+        ctx.fillText(
+          `${pos.side.toUpperCase()} ${pos.quantity} @ ${pos.entryPrice.toFixed(symbolObj?.pricePrecision || 2)}`,
+          width - 95,
+          entryY + 4
+        );
       }
 
-      // Stop Loss Line
+      // Stop Loss Line & Draggable Handle
       if (pos.stopLoss) {
         const slY = chartManager.priceToCoordinate(pos.stopLoss);
         if (slY !== null) {
@@ -112,15 +151,22 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
           ctx.stroke();
           ctx.setLineDash([]);
 
+          // SL Price Badge & Drag Handle
           ctx.fillStyle = '#ef4444';
-          ctx.fillRect(width - 80, slY - 9, 75, 18);
+          ctx.fillRect(width - 85, slY - 9, 80, 18);
           ctx.fillStyle = '#ffffff';
           ctx.font = 'bold 10px JetBrains Mono';
-          ctx.fillText(`SL: ${pos.stopLoss.toFixed(2)}`, width - 75, slY + 4);
+          ctx.fillText(`SL: ${pos.stopLoss.toFixed(2)}`, width - 80, slY + 4);
+
+          // Drag Handle Dot
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(width - 95, slY, 4, 0, Math.PI * 2);
+          ctx.fill();
         }
       }
 
-      // Take Profit Line
+      // Take Profit Line & Draggable Handle
       if (pos.takeProfit) {
         const tpY = chartManager.priceToCoordinate(pos.takeProfit);
         if (tpY !== null) {
@@ -133,11 +179,18 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
           ctx.stroke();
           ctx.setLineDash([]);
 
+          // TP Price Badge & Drag Handle
           ctx.fillStyle = '#22c55e';
-          ctx.fillRect(width - 80, tpY - 9, 75, 18);
+          ctx.fillRect(width - 85, tpY - 9, 80, 18);
           ctx.fillStyle = '#ffffff';
           ctx.font = 'bold 10px JetBrains Mono';
-          ctx.fillText(`TP: ${pos.takeProfit.toFixed(2)}`, width - 75, tpY + 4);
+          ctx.fillText(`TP: ${pos.takeProfit.toFixed(2)}`, width - 80, tpY + 4);
+
+          // Drag Handle Dot
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(width - 95, tpY, 4, 0, Math.PI * 2);
+          ctx.fill();
         }
       }
     });
@@ -159,12 +212,6 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
           ctx.moveTo(p1.x, p1.y);
           ctx.lineTo(p2.x, p2.y);
           ctx.stroke();
-
-          if (isSelected) {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(p1.x - 3, p1.y - 3, 6, 6);
-            ctx.fillRect(p2.x - 3, p2.y - 3, 6, 6);
-          }
         }
       }
       // Ray Line
@@ -174,7 +221,7 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
         if (p1 && p2) {
           const dx = p2.x - p1.x;
           const dy = p2.y - p1.y;
-          const extX = p1.x + (dx !== 0 ? (width * 2) * Math.sign(dx) : 0);
+          const extX = p1.x + (dx !== 0 ? width * 2 * Math.sign(dx) : 0);
           const extY = p1.y + (dx !== 0 ? (dy / dx) * (extX - p1.x) : height * Math.sign(dy));
 
           ctx.beginPath();
@@ -226,6 +273,18 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
           ctx.strokeRect(x, y, w, h);
         }
       }
+      // Circle / Area
+      else if (d.type === 'circle' && d.points.length >= 2) {
+        const p1 = getPixelFromCoordinates(d.points[0]);
+        const p2 = getPixelFromCoordinates(d.points[1]);
+        if (p1 && p2) {
+          const radius = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+          ctx.beginPath();
+          ctx.arc(p1.x, p1.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
       // Arrow
       else if (d.type === 'arrow' && d.points.length >= 2) {
         const p1 = getPixelFromCoordinates(d.points[0]);
@@ -244,7 +303,7 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
           ctx.stroke();
         }
       }
-      // Long Position Tool (TradingView Style)
+      // Long Position Tool (TradingView Style with Draggable Handles)
       else if (d.type === 'long-position' && d.points.length >= 1) {
         const entryPt = getPixelFromCoordinates(d.points[0]);
         if (entryPt) {
@@ -293,7 +352,7 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
           }
         }
       }
-      // Short Position Tool (TradingView Style)
+      // Short Position Tool (TradingView Style with Draggable Handles)
       else if (d.type === 'short-position' && d.points.length >= 1) {
         const entryPt = getPixelFromCoordinates(d.points[0]);
         if (entryPt) {
@@ -371,7 +430,7 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
       }
     });
 
-    // 3. Draw in-progress preview
+    // 3. Draw in-progress drawing preview
     if (activePoints.length > 0 && hoverPoint) {
       ctx.strokeStyle = '#3b82f6';
       ctx.lineWidth = 2;
@@ -388,6 +447,11 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
           ctx.stroke();
         } else if (activeTool === 'rectangle') {
           ctx.strokeRect(Math.min(p1.x, p2.x), Math.min(p1.y, p2.y), Math.abs(p2.x - p1.x), Math.abs(p2.y - p1.y));
+        } else if (activeTool === 'circle') {
+          const radius = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+          ctx.beginPath();
+          ctx.arc(p1.x, p1.y, radius, 0, Math.PI * 2);
+          ctx.stroke();
         }
       }
       ctx.setLineDash([]);
@@ -409,6 +473,9 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
 
   // Handle Canvas Mouse Clicks
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Close context menu if open
+    if (contextMenu) setContextMenu(null);
+
     if (!activeTool || activeTool === 'crosshair') return;
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -418,7 +485,6 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
     if (!pt) return;
 
     if (activeTool === 'delete') {
-      // Find closest drawing to click
       for (const d of drawings) {
         if (d.points.length > 0) {
           const dPt = getPixelFromCoordinates(d.points[0]);
@@ -488,7 +554,7 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
       }
       setActiveTool(null);
     } else {
-      // 2-point tools (trendline, ray, rectangle, measure, arrow)
+      // 2-point tools (trendline, ray, rectangle, circle, measure, arrow)
       if (activePoints.length === 0) {
         setActivePoints([pt]);
       } else {
@@ -504,6 +570,24 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
         setActiveTool(null);
       }
     }
+  };
+
+  // Handle Right Click for Context Menu ("Replay from here", "Go to this candle", etc.)
+  const handleContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const pt = getCoordinatesFromPixel(x, y);
+    if (!pt) return;
+
+    setContextMenu({
+      x,
+      y,
+      time: pt.time,
+      price: pt.price,
+    });
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -532,16 +616,181 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
     renderDrawings();
   }, [renderDrawings]);
 
+  const activeReviewTrade: Trade | null =
+    selectedTradeIndex !== null && closedTrades[selectedTradeIndex]
+      ? closedTrades[selectedTradeIndex]
+      : null;
+
   return (
-    <canvas
-      ref={canvasRef}
-      width={width}
-      height={height}
-      onClick={handleCanvasClick}
-      onMouseMove={handleMouseMove}
-      className={`absolute inset-0 z-10 ${
-        activeTool ? 'cursor-crosshair pointer-events-auto' : 'pointer-events-none'
-      }`}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        width={width}
+        height={height}
+        onClick={handleCanvasClick}
+        onContextMenu={handleContextMenu}
+        onMouseMove={handleMouseMove}
+        className={`absolute inset-0 z-10 ${
+          activeTool ? 'cursor-crosshair pointer-events-auto' : 'pointer-events-auto cursor-default'
+        }`}
+      />
+
+      {/* Right Click Context Menu */}
+      {contextMenu && (
+        <div
+          style={{ left: contextMenu.x + 10, top: contextMenu.y + 10 }}
+          className="absolute z-40 bg-[#0d1322]/95 backdrop-blur-md border border-[#1e2942] rounded-xl shadow-2xl p-1 text-xs font-mono text-gray-200 w-48 space-y-0.5 animate-fadeIn"
+        >
+          <button
+            onClick={() => {
+              jumpToTimestamp(contextMenu.time * 1000, 60);
+              setContextMenu(null);
+            }}
+            className="w-full px-2.5 py-1.5 rounded-lg hover:bg-blue-600 text-left flex items-center space-x-2 text-white font-semibold cursor-pointer transition"
+          >
+            <Play className="w-3.5 h-3.5 text-amber-400" />
+            <span>Replay From Here</span>
+          </button>
+
+          <button
+            onClick={() => {
+              jumpToTimestamp(contextMenu.time * 1000, 60);
+              setContextMenu(null);
+            }}
+            className="w-full px-2.5 py-1.5 rounded-lg hover:bg-[#162035] text-left flex items-center space-x-2 text-gray-300 cursor-pointer transition"
+          >
+            <Clock className="w-3.5 h-3.5 text-blue-400" />
+            <span>Go to this Candle</span>
+          </button>
+
+          <button
+            onClick={() => {
+              addDrawing({
+                id: crypto.randomUUID(),
+                type: 'text',
+                points: [{ time: contextMenu.time, price: contextMenu.price }],
+                text: `Note @ ${contextMenu.price.toFixed(2)}`,
+                color: '#3b82f6',
+                lineWidth: 1,
+                visible: true,
+              });
+              setContextMenu(null);
+            }}
+            className="w-full px-2.5 py-1.5 rounded-lg hover:bg-[#162035] text-left flex items-center space-x-2 text-gray-300 cursor-pointer transition"
+          >
+            <FileText className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Add Note at Price</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTool('measure');
+              setActivePoints([{ time: contextMenu.time, price: contextMenu.price }]);
+              setContextMenu(null);
+            }}
+            className="w-full px-2.5 py-1.5 rounded-lg hover:bg-[#162035] text-left flex items-center space-x-2 text-gray-300 cursor-pointer transition"
+          >
+            <Ruler className="w-3.5 h-3.5 text-purple-400" />
+            <span>Measure from Here</span>
+          </button>
+        </div>
+      )}
+
+      {/* On-Chart Floating Trade Review Card */}
+      {activeReviewTrade && (
+        <div className="absolute bottom-4 right-4 z-30 bg-[#0c111e]/95 backdrop-blur-md border border-[#1e2942] rounded-xl shadow-2xl p-3 text-xs font-mono text-gray-200 w-80 space-y-2 animate-fadeIn">
+          <div className="flex items-center justify-between border-b border-[#182338] pb-1.5">
+            <div className="flex items-center space-x-2">
+              <span
+                className={cn(
+                  'px-1.5 py-0.5 rounded text-[10px] font-black',
+                  activeReviewTrade.side === 'long'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                )}
+              >
+                {activeReviewTrade.side.toUpperCase()} {activeReviewTrade.quantity} {activeReviewTrade.symbol}
+              </span>
+              <span className="text-gray-400 text-[10px]">Trade Review</span>
+            </div>
+
+            <button
+              onClick={() => setSelectedTradeIndex(null)}
+              className="p-1 text-gray-400 hover:text-white rounded hover:bg-[#162035] cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="space-y-1 text-[11px]">
+            <div className="flex justify-between">
+              <span className="text-gray-400">Entry / Exit:</span>
+              <span className="text-white">
+                {activeReviewTrade.entryPrice.toFixed(2)} → {activeReviewTrade.exitPrice?.toFixed(2) || 'Open'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Net Realized P&amp;L:</span>
+              <strong className={activeReviewTrade.netPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                {formatPnL(activeReviewTrade.netPnL)}
+              </strong>
+            </div>
+            {activeReviewTrade.rMultiple !== null && (
+              <div className="flex justify-between">
+                <span className="text-gray-400">R-Multiple:</span>
+                <span className="text-blue-400 font-bold">
+                  {activeReviewTrade.rMultiple >= 0 ? '+' : ''}{activeReviewTrade.rMultiple}R
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-gray-400">Duration:</span>
+              <span className="text-gray-300">
+                {activeReviewTrade.duration ? formatDuration(activeReviewTrade.duration) : '-'}
+              </span>
+            </div>
+          </div>
+
+          {/* Stepper Navigation */}
+          <div className="flex items-center justify-between pt-1 border-t border-[#182338]">
+            <button
+              disabled={selectedTradeIndex === 0}
+              onClick={() => {
+                if (selectedTradeIndex !== null && selectedTradeIndex > 0) {
+                  const nextIdx = selectedTradeIndex - 1;
+                  setSelectedTradeIndex(nextIdx);
+                  const t = closedTrades[nextIdx];
+                  if (t) jumpToTimestamp(t.entryTime, 60);
+                }
+              }}
+              className="px-2 py-1 rounded bg-[#141b2c] hover:bg-[#1f2b44] text-gray-300 disabled:opacity-40 text-[10px] flex items-center space-x-1 cursor-pointer"
+            >
+              <ChevronLeft className="w-3 h-3" />
+              <span>Prev Trade</span>
+            </button>
+
+            <span className="text-[10px] text-gray-400">
+              {(selectedTradeIndex ?? 0) + 1} of {closedTrades.length}
+            </span>
+
+            <button
+              disabled={selectedTradeIndex === closedTrades.length - 1}
+              onClick={() => {
+                if (selectedTradeIndex !== null && selectedTradeIndex < closedTrades.length - 1) {
+                  const nextIdx = selectedTradeIndex + 1;
+                  setSelectedTradeIndex(nextIdx);
+                  const t = closedTrades[nextIdx];
+                  if (t) jumpToTimestamp(t.entryTime, 60);
+                }
+              }}
+              className="px-2 py-1 rounded bg-[#141b2c] hover:bg-[#1f2b44] text-gray-300 disabled:opacity-40 text-[10px] flex items-center space-x-1 cursor-pointer"
+            >
+              <span>Next Trade</span>
+              <ChevronRight className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

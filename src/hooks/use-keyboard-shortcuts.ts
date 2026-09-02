@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 import { useReplayStore } from '@/store/replay-store';
 import { useChartStore } from '@/store/chart-store';
 import { useUIStore } from '@/store/ui-store';
+import { useTradingStore } from '@/store/trading-store';
+import { marketDataService } from '@/lib/market-data/market-data-service';
 import { soundEngine } from '@/lib/audio/sound-engine';
 import { REPLAY_SPEEDS } from '@/config/constants';
 import type { ReplaySpeed } from '@/types/common';
@@ -14,10 +16,20 @@ export function useKeyboardShortcuts() {
   const previousCandle = useReplayStore((s) => s.previousCandle);
   const reset = useReplayStore((s) => s.reset);
   const setSpeed = useReplayStore((s) => s.setSpeed);
+  const allCandles = useReplayStore((s) => s.allCandles);
+  const currentIndex = useReplayStore((s) => s.currentIndex);
+  const preloadCount = useReplayStore((s) => s.preloadCount);
 
+  const activeSymbol = useChartStore((s) => s.activeSymbol);
   const setActiveTool = useChartStore((s) => s.setActiveTool);
+
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
+  const setJumpToDateModalOpen = useUIStore((s) => s.setJumpToDateModalOpen);
   const toggleFullscreen = useUIStore((s) => s.toggleFullscreen);
+
+  const positions = useTradingStore((s) => s.positions);
+  const placeMarketOrder = useTradingStore((s) => s.placeMarketOrder);
+  const closePosition = useTradingStore((s) => s.closePosition);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -34,6 +46,13 @@ export function useKeyboardShortcuts() {
         e.target instanceof HTMLTextAreaElement ||
         (e.target as HTMLElement).isContentEditable
       ) {
+        return;
+      }
+
+      // Go To Date/Time Modal Shortcut: G
+      if ((e.key === 'g' || e.key === 'G') && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setJumpToDateModalOpen(true);
         return;
       }
 
@@ -66,11 +85,58 @@ export function useKeyboardShortcuts() {
         toggleFullscreen();
       }
 
-      // Replay Speeds (1 to 7)
-      if (['1', '2', '3', '4', '5', '6', '7'].includes(e.key) && !e.metaKey && !e.ctrlKey) {
+      // Replay Speeds (1 to 9)
+      if (['1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key) && !e.metaKey && !e.ctrlKey) {
         const num = parseInt(e.key, 10) - 1;
         if (num >= 0 && num < REPLAY_SPEEDS.length) {
           setSpeed(REPLAY_SPEEDS[num] as ReplaySpeed);
+        }
+      }
+
+      // Hotkey B: Buy Market 1 Contract
+      if ((e.key === 'b' || e.key === 'B') && !e.metaKey && !e.ctrlKey) {
+        const currentCandle = allCandles[preloadCount + currentIndex];
+        if (currentCandle) {
+          marketDataService.getSymbol(activeSymbol).then((sym) => {
+            placeMarketOrder({
+              symbol: sym,
+              side: 'long',
+              quantity: sym.minQuantity || 1,
+              currentPrice: currentCandle.close,
+              timestamp: currentCandle.timestamp,
+              stopLoss: currentCandle.close - sym.tickSize * 20,
+              takeProfit: currentCandle.close + sym.tickSize * 40,
+            });
+          });
+        }
+      }
+
+      // Hotkey S: Sell Market 1 Contract
+      if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey) {
+        const currentCandle = allCandles[preloadCount + currentIndex];
+        if (currentCandle) {
+          marketDataService.getSymbol(activeSymbol).then((sym) => {
+            placeMarketOrder({
+              symbol: sym,
+              side: 'short',
+              quantity: sym.minQuantity || 1,
+              currentPrice: currentCandle.close,
+              timestamp: currentCandle.timestamp,
+              stopLoss: currentCandle.close + sym.tickSize * 20,
+              takeProfit: currentCandle.close - sym.tickSize * 40,
+            });
+          });
+        }
+      }
+
+      // Hotkey C: Close Active Position
+      if ((e.key === 'c' || e.key === 'C') && !e.metaKey && !e.ctrlKey) {
+        const activePos = positions.find((p) => p.symbol === activeSymbol) || positions[0];
+        const currentCandle = allCandles[preloadCount + currentIndex];
+        if (activePos && currentCandle) {
+          marketDataService.getSymbol(activePos.symbol).then((sym) => {
+            closePosition(activePos.id, currentCandle.close, currentCandle.timestamp, sym);
+          });
         }
       }
 
@@ -108,8 +174,16 @@ export function useKeyboardShortcuts() {
     previousCandle,
     reset,
     setSpeed,
+    allCandles,
+    currentIndex,
+    preloadCount,
+    activeSymbol,
+    positions,
+    placeMarketOrder,
+    closePosition,
     setActiveTool,
     setCommandPaletteOpen,
+    setJumpToDateModalOpen,
     toggleFullscreen,
   ]);
 }

@@ -17,6 +17,7 @@ interface UIStore {
   isObjectTreeOpen: boolean;
   isPropFirmModalOpen: boolean;
   isCalendarModalOpen: boolean;
+  isJumpToDateModalOpen: boolean;
 
   // Actions
   toggleRightSidebar: () => void;
@@ -34,6 +35,7 @@ interface UIStore {
   setObjectTreeOpen: (open: boolean) => void;
   setPropFirmModalOpen: (open: boolean) => void;
   setCalendarModalOpen: (open: boolean) => void;
+  setJumpToDateModalOpen: (open: boolean) => void;
 }
 
 export const useUIStore = create<UIStore>()(
@@ -51,6 +53,7 @@ export const useUIStore = create<UIStore>()(
       isObjectTreeOpen: false,
       isPropFirmModalOpen: false,
       isCalendarModalOpen: false,
+      isJumpToDateModalOpen: false,
 
       toggleRightSidebar: () => set((state) => ({ showRightSidebar: !state.showRightSidebar })),
       setShowRightSidebar: (show) => set({ showRightSidebar: show }),
@@ -69,6 +72,7 @@ export const useUIStore = create<UIStore>()(
       setObjectTreeOpen: (open) => set({ isObjectTreeOpen: open }),
       setPropFirmModalOpen: (open) => set({ isPropFirmModalOpen: open }),
       setCalendarModalOpen: (open) => set({ isCalendarModalOpen: open }),
+      setJumpToDateModalOpen: (open) => set({ isJumpToDateModalOpen: open }),
     }),
     {
       name: 'tradeforge-ui-v1',

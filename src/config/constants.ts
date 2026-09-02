@@ -3,7 +3,7 @@ export const APP_TAGLINE = 'Backtest. Replay. Improve.';
 
 export const TIMEFRAMES = ['1m', '5m', '15m', '30m', '1h', '4h', '1D'] as const;
 
-export const REPLAY_SPEEDS = [0.25, 0.5, 1, 2, 5, 10, 20, 50, 100] as const;
+export const REPLAY_SPEEDS = [0.25, 0.5, 1, 2, 5, 10, 20, 25, 50, 100] as const;
 
 export const CHART_COLORS = {
   background: '#0a0e17',

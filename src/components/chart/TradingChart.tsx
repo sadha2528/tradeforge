@@ -16,6 +16,7 @@ import {
 } from '@/lib/indicators/calculations';
 import { DrawingCanvas } from './DrawingCanvas';
 import { ChartLegend } from './ChartLegend';
+import { OnChartTradingWidget } from './OnChartTradingWidget';
 import { TIMEFRAMES } from '@/config/constants';
 import type { UTCTimestamp, LineData } from 'lightweight-charts';
 import type { Symbol, Timeframe, OHLCV } from '@/types/market-data';
@@ -272,6 +273,7 @@ export function TradingChart({
       {/* Main Chart Container */}
       <div className="flex-1 relative overflow-hidden">
         {!isMultiChart && <ChartLegend symbolObj={symbolObj} />}
+        {(!isMultiChart || isTileFocused) && <OnChartTradingWidget />}
         <div ref={containerRef} className="w-full h-full" />
         <DrawingCanvas
           chartManager={chartManagerRef.current}

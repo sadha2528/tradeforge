@@ -8,6 +8,10 @@ import {
   evaluatePropFirmRules,
   PROP_FIRM_PRESETS,
 } from '../src/lib/prop-firm/evaluation-engine';
+import {
+  getRevealedEconomicEvents,
+  MOCK_ECONOMIC_EVENTS,
+} from '../src/lib/calendar/economic-calendar';
 import type { Trade } from '../src/types/trading';
 
 function assert(condition: boolean, message: string) {
@@ -17,7 +21,7 @@ function assert(condition: boolean, message: string) {
 }
 
 function runTests() {
-  console.log('🧪 Starting TradeForge Futures & Prop-Firm Engine Tests...\n');
+  console.log('🧪 Starting TradeForge Futures, Prop-Firm & Zero-Lookahead Engine Tests...\n');
 
   // TEST 1: Futures Contract Specifications
   console.log('1️⃣ Testing Futures Contract Specifications (ES, NQ, YM, RTY, GC, CL)...');
@@ -134,6 +138,19 @@ function runTests() {
   assert(evalResult.isDailyLossBreached === false, 'Daily loss should not be breached');
   assert(evalResult.isMaxDrawdownBreached === false, 'Max drawdown should not be breached');
   console.log('   ✅ Prop Firm rule tracking and challenge status evaluated accurately!\n');
+
+  // TEST 5: Zero-Lookahead Economic Calendar Filtering
+  console.log('5️⃣ Testing Zero-Lookahead Economic Event Boundary Filtering...');
+  const cutoffTimestamp = Date.parse('2024-01-20T00:00:00Z');
+  const revealedEvents = getRevealedEconomicEvents(cutoffTimestamp);
+  assert(revealedEvents.length > 0, 'Should have revealed events before cutoff');
+  revealedEvents.forEach((e) => {
+    assert(
+      e.timestamp <= cutoffTimestamp,
+      `Event ${e.event} timestamp (${e.timestamp}) is after replay cutoff (${cutoffTimestamp})! Lookahead leak!`
+    );
+  });
+  console.log('   ✅ Zero lookahead verified: no future economic events revealed ahead of time!\n');
 
   console.log('🎉 ALL TESTS PASSED SUCCESSFULLY! 🚀');
 }

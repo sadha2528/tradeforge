@@ -10,6 +10,7 @@ import { CommandPaletteModal } from '@/components/modals/CommandPaletteModal';
 import { ChartSettingsModal } from '@/components/modals/ChartSettingsModal';
 import { ObjectTreeModal } from '@/components/modals/ObjectTreeModal';
 import { PropFirmModal } from '@/components/modals/PropFirmModal';
+import { JumpToDateModal } from '@/components/modals/JumpToDateModal';
 import { Maximize2, Minimize2, ChevronRight, ChevronDown, ChevronUp, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -29,6 +30,8 @@ export function PlatformLayout({ children }: PlatformLayoutProps) {
     setBottomPanelHeight,
     isFullscreen,
     setIsFullscreen,
+    isJumpToDateModalOpen,
+    setJumpToDateModalOpen,
   } = useUIStore();
 
   const [isDraggingRight, setIsDraggingRight] = useState(false);
@@ -158,6 +161,10 @@ export function PlatformLayout({ children }: PlatformLayoutProps) {
       <ChartSettingsModal />
       <ObjectTreeModal />
       <PropFirmModal />
+      <JumpToDateModal
+        isOpen={isJumpToDateModalOpen}
+        onClose={() => setJumpToDateModalOpen(false)}
+      />
     </div>
   );
 }

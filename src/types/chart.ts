@@ -7,6 +7,7 @@ export type DrawingTool =
   | 'horizontal-line'
   | 'vertical-line'
   | 'rectangle'
+  | 'circle'
   | 'price-range'
   | 'date-range'
   | 'long-position'
