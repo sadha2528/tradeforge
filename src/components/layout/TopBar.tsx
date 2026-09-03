@@ -64,6 +64,8 @@ export function TopBar() {
   const layout = useChartStore((s) => s.layout);
   const setLayout = useChartStore((s) => s.setLayout);
   const drawings = useChartStore((s) => s.drawings);
+  const chartMode = useChartStore((s) => s.chartMode);
+  const setChartMode = useChartStore((s) => s.setChartMode);
 
   const currentSession = useSessionStore((s) => s.currentSession);
   const saveCurrentSessionSnapshot = useSessionStore((s) => s.saveCurrentSessionSnapshot);
@@ -287,6 +289,29 @@ export function TopBar() {
               )}
             >
               <Grid2X2 className="w-3 h-3" />
+            </button>
+          </div>
+          {/* Chart Engine Switcher: Replay vs TradingView Live */}
+          <div className="flex items-center space-x-0.5 bg-[#101726] p-0.5 rounded-lg border border-[#1b253c] text-[11px] font-mono">
+            <button
+              onClick={() => setChartMode('replay')}
+              title="Replay Engine Mode (Tick-accurate backtesting & zero lookahead)"
+              className={cn(
+                'px-2 py-0.5 rounded transition cursor-pointer font-bold',
+                chartMode === 'replay' ? 'bg-blue-600 text-white shadow-xs' : 'text-gray-400 hover:text-gray-200'
+              )}
+            >
+              Replay
+            </button>
+            <button
+              onClick={() => setChartMode('tradingview')}
+              title="TradingView Studio Mode (Official TradingView live charts with Pine Script & indicators)"
+              className={cn(
+                'px-2 py-0.5 rounded transition cursor-pointer font-bold',
+                chartMode === 'tradingview' ? 'bg-blue-600 text-white shadow-xs' : 'text-gray-400 hover:text-gray-200'
+              )}
+            >
+              TradingView
             </button>
           </div>
         </div>

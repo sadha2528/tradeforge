@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { TradingChart } from './TradingChart';
+import { TradingViewAdvancedWidget } from './TradingViewAdvancedWidget';
 import { ReplayEngine } from '@/lib/backtesting/replay-engine';
 import { useReplayStore } from '@/store/replay-store';
 import { useChartStore } from '@/store/chart-store';
@@ -18,6 +19,7 @@ export function ChartContainer() {
 
   const activeSymbol = useChartStore((s) => s.activeSymbol);
   const activeTimeframe = useChartStore((s) => s.activeTimeframe);
+  const chartMode = useChartStore((s) => s.chartMode);
 
   const state = useReplayStore((s) => s.state);
   const speed = useReplayStore((s) => s.speed);
@@ -92,8 +94,8 @@ export function ChartContainer() {
   }, [speed]);
 
   return (
-    <div className="relative w-full h-full bg-[#0a0e17]">
-      {isLoading && (
+    <div className="relative w-full h-full bg-[#131722]">
+      {isLoading && chartMode === 'replay' && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#070a12]/80 backdrop-blur-xs">
           <div className="flex items-center space-x-2 text-blue-400 font-mono text-xs">
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -101,7 +103,12 @@ export function ChartContainer() {
           </div>
         </div>
       )}
-      <TradingChart />
+
+      {chartMode === 'tradingview' ? (
+        <TradingViewAdvancedWidget symbol={activeSymbol} timeframe={activeTimeframe} />
+      ) : (
+        <TradingChart />
+      )}
     </div>
   );
 }

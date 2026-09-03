@@ -26,6 +26,7 @@ export interface ChartManagerOptions {
   container: HTMLElement;
   width?: number;
   height?: number;
+  watermarkText?: string;
 }
 
 export class ChartManager {
@@ -43,32 +44,63 @@ export class ChartManager {
       layout: {
         background: { type: ColorType.Solid, color: CHART_COLORS.background },
         textColor: CHART_COLORS.text,
+        fontFamily: "'Trebuchet MS', Roboto, Ubuntu, -apple-system, sans-serif",
       },
       grid: {
-        vertLines: { color: CHART_COLORS.grid },
-        horzLines: { color: CHART_COLORS.grid },
+        vertLines: { color: CHART_COLORS.grid, style: LineStyle.Solid },
+        horzLines: { color: CHART_COLORS.grid, style: LineStyle.Solid },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
+        vertLine: {
+          color: CHART_COLORS.crosshair,
+          width: 1,
+          style: LineStyle.Dashed,
+          visible: true,
+          labelVisible: true,
+          labelBackgroundColor: CHART_COLORS.crosshairLabel,
+        },
+        horzLine: {
+          color: CHART_COLORS.crosshair,
+          width: 1,
+          style: LineStyle.Dashed,
+          visible: true,
+          labelVisible: true,
+          labelBackgroundColor: CHART_COLORS.crosshairLabel,
+        },
       },
       timeScale: {
         borderColor: CHART_COLORS.grid,
         timeVisible: true,
         secondsVisible: false,
+        barSpacing: 8,
+        minBarSpacing: 2,
+        rightOffset: 12,
       },
       rightPriceScale: {
         borderColor: CHART_COLORS.grid,
+        autoScale: true,
+        scaleMargins: {
+          top: 0.1,
+          bottom: 0.2,
+        },
       },
     });
 
+    // Authentic TradingView Candlestick Series Configuration
     this.candleSeries = this.chart.addSeries(CandlestickSeries, {
       upColor: CHART_COLORS.candleUp,
       downColor: CHART_COLORS.candleDown,
-      borderVisible: false,
+      borderVisible: true,
+      borderColor: CHART_COLORS.candleUp,
+      borderUpColor: CHART_COLORS.candleUp,
+      borderDownColor: CHART_COLORS.candleDown,
+      wickVisible: true,
       wickUpColor: CHART_COLORS.candleUp,
       wickDownColor: CHART_COLORS.candleDown,
     });
 
+    // Authentic TradingView Volume Overlay
     this.volumeSeries = this.chart.addSeries(HistogramSeries, {
       color: CHART_COLORS.volume,
       priceFormat: {
@@ -77,10 +109,10 @@ export class ChartManager {
       priceScaleId: '', // overlay on main chart
     });
 
-    // Scale volume to take up 20% of the chart from the bottom
+    // Scale volume to take up 18% of the chart bottom
     this.chart.priceScale('').applyOptions({
       scaleMargins: {
-        top: 0.8,
+        top: 0.82,
         bottom: 0,
       },
     });

@@ -8,6 +8,7 @@ interface ChartStore {
   activeTool: DrawingTool | null;
   drawings: Drawing[];
   selectedDrawingId: string | null;
+  chartMode: 'replay' | 'tradingview';
 
   // Multi-Chart Grid State
   layout: ChartLayout;
@@ -17,6 +18,7 @@ interface ChartStore {
   setActiveSymbol: (symbol: string) => void;
   setActiveTimeframe: (timeframe: Timeframe) => void;
   setActiveTool: (tool: DrawingTool | null) => void;
+  setChartMode: (mode: 'replay' | 'tradingview') => void;
 
   addDrawing: (drawing: Drawing) => void;
   updateDrawing: (id: string, updates: Partial<Drawing>) => void;
@@ -37,6 +39,7 @@ export const useChartStore = create<ChartStore>((set) => ({
   activeTool: null,
   drawings: [],
   selectedDrawingId: null,
+  chartMode: 'replay',
 
   layout: '1x1',
   activeTileIndex: 0,
@@ -64,6 +67,7 @@ export const useChartStore = create<ChartStore>((set) => ({
     }),
 
   setActiveTool: (tool) => set({ activeTool: tool }),
+  setChartMode: (mode) => set({ chartMode: mode }),
 
   addDrawing: (drawing) =>
     set((state) => ({

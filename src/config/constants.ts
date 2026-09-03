@@ -6,16 +6,19 @@ export const TIMEFRAMES = ['1m', '5m', '15m', '30m', '1h', '4h', '1D'] as const;
 export const REPLAY_SPEEDS = [0.25, 0.5, 1, 2, 5, 10, 20, 25, 50, 100] as const;
 
 export const CHART_COLORS = {
-  background: '#0a0e17',
-  text: '#d1d5db',
-  grid: '#1a1f2e',
-  candleUp: '#22c55e',
-  candleDown: '#ef4444',
+  background: '#131722', // Official TradingView dark chart background
+  text: '#d1d4dc',       // TradingView light text
+  grid: '#1e222d',       // TradingView subtle grid lines
+  candleUp: '#089981',   // TradingView green (teal)
+  candleDown: '#F23645', // TradingView red
+  volumeUp: 'rgba(8, 153, 129, 0.4)',
+  volumeDown: 'rgba(242, 54, 69, 0.4)',
   volume: '#334155',
-  crosshair: '#6b7280',
-  stopLoss: '#ef4444',
-  takeProfit: '#22c55e',
-  entry: '#3b82f6',
+  crosshair: '#787b86',  // TradingView crosshair color
+  crosshairLabel: '#2a2e39',
+  stopLoss: '#F23645',
+  takeProfit: '#089981',
+  entry: '#2962FF',      // TradingView blue
   position: '#8b5cf6',
 } as const;
 
