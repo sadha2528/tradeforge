@@ -6,6 +6,7 @@ import { LeftToolbar } from './LeftToolbar';
 import { RightSidebar } from './RightSidebar';
 import { BottomPanel } from './BottomPanel';
 import { useUIStore } from '@/store/ui-store';
+import { useChartStore } from '@/store/chart-store';
 import { CommandPaletteModal } from '@/components/modals/CommandPaletteModal';
 import { ChartSettingsModal } from '@/components/modals/ChartSettingsModal';
 import { ObjectTreeModal } from '@/components/modals/ObjectTreeModal';
@@ -33,6 +34,9 @@ export function PlatformLayout({ children }: PlatformLayoutProps) {
     isJumpToDateModalOpen,
     setJumpToDateModalOpen,
   } = useUIStore();
+
+  const chartMode = useChartStore((s) => s.chartMode);
+  const showLeftToolbar = chartMode === 'replay' && !isFullscreen;
 
   const [isDraggingRight, setIsDraggingRight] = useState(false);
   const [isDraggingBottom, setIsDraggingBottom] = useState(false);
@@ -82,33 +86,37 @@ export function PlatformLayout({ children }: PlatformLayoutProps) {
     };
   }, [isDraggingRight, isDraggingBottom, setRightSidebarWidth, setBottomPanelHeight]);
 
+  const leftColWidth = showLeftToolbar ? '40px' : '0px';
+
   return (
     <div
       className={cn(
         'h-screen w-screen bg-[#0a0e17] overflow-hidden grid text-gray-200 select-none relative',
-        isFullscreen ? 'grid-rows-[44px_1fr] grid-cols-[40px_1fr]' : ''
+        isFullscreen ? 'grid-rows-[44px_1fr] grid-cols-[1fr]' : ''
       )}
       style={
         !isFullscreen
           ? {
               gridTemplateRows: `48px 1fr ${showBottomPanel ? (bottomPanelHeight || 240) + 'px' : '0px'}`,
-              gridTemplateColumns: `40px 1fr ${showRightSidebar ? (rightSidebarWidth || 320) + 'px' : '0px'}`,
+              gridTemplateColumns: `${leftColWidth} 1fr ${showRightSidebar ? (rightSidebarWidth || 320) + 'px' : '0px'}`,
             }
           : undefined
       }
     >
       {/* TopBar - spans full width */}
-      <div className={cn(isFullscreen ? 'col-span-2 row-span-1' : 'col-span-3 row-span-1')}>
+      <div className={cn(isFullscreen ? 'col-span-1 row-span-1' : 'col-span-3 row-span-1')}>
         <TopBar />
       </div>
 
-      {/* LeftToolbar */}
-      <div className="col-start-1 row-start-2 row-span-2">
-        <LeftToolbar />
-      </div>
+      {/* LeftToolbar (Active during Replay Mode) */}
+      {showLeftToolbar && (
+        <div className="col-start-1 row-start-2 row-span-2">
+          <LeftToolbar />
+        </div>
+      )}
 
       {/* Main Chart Area */}
-      <div className="col-start-2 row-start-2 bg-[#070a12] relative overflow-hidden flex flex-col">
+      <div className={cn('row-start-2 bg-[#131722] relative overflow-hidden flex flex-col', showLeftToolbar ? 'col-start-2' : 'col-start-1 col-span-2')}>
         {children}
 
         {/* Floating Fullscreen Exit Button */}

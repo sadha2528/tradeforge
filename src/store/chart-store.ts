@@ -39,7 +39,7 @@ export const useChartStore = create<ChartStore>((set) => ({
   activeTool: null,
   drawings: [],
   selectedDrawingId: null,
-  chartMode: 'replay',
+  chartMode: 'tradingview',
 
   layout: '1x1',
   activeTileIndex: 0,

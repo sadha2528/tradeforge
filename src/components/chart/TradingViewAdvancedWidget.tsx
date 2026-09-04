@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
+import { OnChartTradingWidget } from './OnChartTradingWidget';
 
 interface TradingViewAdvancedWidgetProps {
   symbol?: string;
@@ -89,11 +90,16 @@ export function TradingViewAdvancedWidget({
     script.type = 'text/javascript';
     script.async = true;
     script.onload = () => {
-      if (typeof (window as unknown as { TradingView?: { widget: new (config: Record<string, unknown>) => void } }).TradingView !== 'undefined') {
+      if (
+        typeof (window as unknown as { TradingView?: { widget: new (config: Record<string, unknown>) => void } })
+          .TradingView !== 'undefined'
+      ) {
         const tvSymbol = mapToTradingViewSymbol(symbol);
         const tvInterval = mapToTradingViewInterval(timeframe);
 
-        new (window as unknown as { TradingView: { widget: new (config: Record<string, unknown>) => void } }).TradingView.widget({
+        new (
+          window as unknown as { TradingView: { widget: new (config: Record<string, unknown>) => void } }
+        ).TradingView.widget({
           autosize,
           symbol: tvSymbol,
           interval: tvInterval,
@@ -106,11 +112,16 @@ export function TradingViewAdvancedWidget({
           allow_symbol_change: true,
           container_id: container.id,
           hide_side_toolbar: false,
+          hide_top_toolbar: false,
+          save_image: true,
+          show_popup_button: true,
+          popup_width: '1000',
+          popup_height: '650',
           withdateranges: true,
           details: true,
           hotlist: true,
           calendar: true,
-          studies: ['STD;EMA', 'STD;SMA', 'STD;RSI'],
+          studies: ['STD;EMA', 'STD;SMA', 'STD;RSI', 'STD;MACD'],
           disabled_features: ['use_localstorage_for_settings'],
           enabled_features: ['study_templates'],
         });
@@ -127,7 +138,10 @@ export function TradingViewAdvancedWidget({
   }, [symbol, timeframe, theme, autosize]);
 
   return (
-    <div className="w-full h-full relative bg-[#131722]">
+    <div className="w-full h-full relative bg-[#131722] overflow-hidden">
+      {/* Floating On-Chart Quick Trading Widget */}
+      <OnChartTradingWidget />
+
       <div
         id={`tradingview_${Math.random().toString(36).substring(7)}`}
         ref={containerRef}
