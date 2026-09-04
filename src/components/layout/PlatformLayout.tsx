@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { TopBar } from './TopBar';
-import { LeftToolbar } from './LeftToolbar';
-import { RightSidebar } from './RightSidebar';
+import { SessionBar } from './SessionBar';
+import { ExecutionPanel } from './ExecutionPanel';
 import { BottomPanel } from './BottomPanel';
+import { ReplayBar } from './ReplayBar';
+import { FloatingToolbar } from './FloatingToolbar';
 import { useUIStore } from '@/store/ui-store';
 import { useChartStore } from '@/store/chart-store';
 import { CommandPaletteModal } from '@/components/modals/CommandPaletteModal';
@@ -12,7 +13,7 @@ import { ChartSettingsModal } from '@/components/modals/ChartSettingsModal';
 import { ObjectTreeModal } from '@/components/modals/ObjectTreeModal';
 import { PropFirmModal } from '@/components/modals/PropFirmModal';
 import { JumpToDateModal } from '@/components/modals/JumpToDateModal';
-import { Maximize2, Minimize2, ChevronRight, ChevronDown, ChevronUp, ChevronLeft } from 'lucide-react';
+import { Minimize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PlatformLayoutProps {
@@ -24,7 +25,6 @@ export function PlatformLayout({ children }: PlatformLayoutProps) {
     showRightSidebar,
     setShowRightSidebar,
     showBottomPanel,
-    setShowBottomPanel,
     rightSidebarWidth,
     setRightSidebarWidth,
     bottomPanelHeight,
@@ -36,18 +36,15 @@ export function PlatformLayout({ children }: PlatformLayoutProps) {
   } = useUIStore();
 
   const chartMode = useChartStore((s) => s.chartMode);
-  const showLeftToolbar = chartMode === 'replay' && !isFullscreen;
 
   const [isDraggingRight, setIsDraggingRight] = useState(false);
   const [isDraggingBottom, setIsDraggingBottom] = useState(false);
 
-  // Handle right sidebar horizontal mouse-drag resizing
   const handleRightMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsDraggingRight(true);
   }, []);
 
-  // Handle bottom panel vertical mouse-drag resizing
   const handleBottomMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsDraggingBottom(true);
@@ -57,14 +54,13 @@ export function PlatformLayout({ children }: PlatformLayoutProps) {
     const handleMouseMove = (e: MouseEvent) => {
       if (isDraggingRight) {
         const newWidth = window.innerWidth - e.clientX;
-        setRightSidebarWidth(newWidth);
+        setRightSidebarWidth(Math.min(520, Math.max(220, newWidth)));
       }
       if (isDraggingBottom) {
         const newHeight = window.innerHeight - e.clientY;
-        setBottomPanelHeight(newHeight);
+        setBottomPanelHeight(Math.min(600, Math.max(120, newHeight)));
       }
     };
-
     const handleMouseUp = () => {
       setIsDraggingRight(false);
       setIsDraggingBottom(false);
@@ -79,100 +75,132 @@ export function PlatformLayout({ children }: PlatformLayoutProps) {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     }
-
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isDraggingRight, isDraggingBottom, setRightSidebarWidth, setBottomPanelHeight]);
 
-  const leftColWidth = showLeftToolbar ? '40px' : '0px';
+  // Keyboard shortcuts: F = fullscreen, Esc = exit fullscreen
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
+      if (e.key === 'F' || e.key === 'f') setIsFullscreen(true);
+      if (e.key === 'Escape') setIsFullscreen(false);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [setIsFullscreen]);
 
-  return (
-    <div
-      className={cn(
-        'h-screen w-screen bg-[#0a0e17] overflow-hidden grid text-gray-200 select-none relative',
-        isFullscreen ? 'grid-rows-[44px_1fr] grid-cols-[1fr]' : ''
-      )}
-      style={
-        !isFullscreen
-          ? {
-              gridTemplateRows: `48px 1fr ${showBottomPanel ? (bottomPanelHeight || 240) + 'px' : '0px'}`,
-              gridTemplateColumns: `${leftColWidth} 1fr ${showRightSidebar ? (rightSidebarWidth || 320) + 'px' : '0px'}`,
-            }
-          : undefined
-      }
-    >
-      {/* TopBar - spans full width */}
-      <div className={cn(isFullscreen ? 'col-span-1 row-span-1' : 'col-span-3 row-span-1')}>
-        <TopBar />
-      </div>
+  const sidebarW = showRightSidebar ? (rightSidebarWidth || 280) : 0;
+  const bottomH = showBottomPanel ? (bottomPanelHeight || 240) : 0;
+  const replayBarH = 48; // px
+  const sessionBarH = 44; // px
 
-      {/* LeftToolbar (Active during Replay Mode) */}
-      {showLeftToolbar && (
-        <div className="col-start-1 row-start-2 row-span-2">
-          <LeftToolbar />
-        </div>
-      )}
-
-      {/* Main Chart Area */}
-      <div className={cn('row-start-2 bg-[#131722] relative overflow-hidden flex flex-col', showLeftToolbar ? 'col-start-2' : 'col-start-1 col-span-2')}>
-        {children}
-
-        {/* Floating Fullscreen Exit Button */}
-        {isFullscreen && (
+  if (isFullscreen) {
+    return (
+      <div className="h-screen w-screen bg-[#0b0e17] overflow-hidden flex flex-col text-gray-200 select-none relative">
+        {/* Chart fullscreen */}
+        <div className="flex-1 relative overflow-hidden bg-[#131722]">
+          {children}
+          {chartMode === 'replay' && <FloatingToolbar />}
           <button
             onClick={() => setIsFullscreen(false)}
-            className="absolute top-3 right-4 z-40 bg-[#121828]/90 hover:bg-[#1a233a] border border-[#202c44] text-gray-300 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-mono flex items-center space-x-1.5 shadow-xl backdrop-blur-xs transition cursor-pointer"
+            className="absolute top-3 right-4 z-50 bg-[#0f1421]/90 hover:bg-[#161c2b] border border-[#1e2535] text-gray-300 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-mono flex items-center gap-1.5 shadow-xl backdrop-blur-sm transition cursor-pointer"
           >
             <Minimize2 className="w-3.5 h-3.5" />
             <span>Exit Fullscreen (Esc)</span>
           </button>
-        )}
+        </div>
+        {/* Minimal replay strip always visible */}
+        <div className="shrink-0" style={{ height: replayBarH }}>
+          <ReplayBar />
+        </div>
+        <CommandPaletteModal />
+        <ChartSettingsModal />
+        <ObjectTreeModal />
+        <PropFirmModal />
+        <JumpToDateModal isOpen={isJumpToDateModalOpen} onClose={() => setJumpToDateModalOpen(false)} />
+      </div>
+    );
+  }
 
-        {/* Bottom Resizer Bar & Collapse Handle */}
-        {!isFullscreen && showBottomPanel && (
+  return (
+    <div className="h-screen w-screen bg-[#0b0e17] overflow-hidden flex flex-col text-gray-200 select-none">
+
+      {/* ── ROW 1: Session Bar ── */}
+      <div className="shrink-0" style={{ height: sessionBarH }}>
+        <SessionBar />
+      </div>
+
+      {/* ── ROW 2: Main workspace (chart + right panel) ── */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* ── Chart Area ── */}
+        <div className="flex flex-col flex-1 overflow-hidden relative">
+          {/* Chart fills all remaining vertical space above bottom panel */}
           <div
-            onMouseDown={handleBottomMouseDown}
-            className="absolute bottom-0 left-0 right-0 h-1.5 hover:h-2 bg-transparent hover:bg-blue-500/40 cursor-ns-resize transition-all z-30 flex items-center justify-center group"
+            className="flex-1 relative overflow-hidden bg-[#131722]"
+            style={{ minHeight: 0 }}
           >
-            <div className="w-12 h-1 bg-gray-600 rounded-full group-hover:bg-blue-400 opacity-60" />
+            {children}
+
+            {/* Floating drawing toolbar — only in replay mode */}
+            {chartMode === 'replay' && <FloatingToolbar />}
+
+            {/* Bottom drag handle */}
+            {showBottomPanel && (
+              <div
+                onMouseDown={handleBottomMouseDown}
+                className="absolute bottom-0 left-0 right-0 h-1.5 hover:h-2 bg-transparent hover:bg-blue-500/30 cursor-ns-resize transition-all z-20 flex items-center justify-center group"
+              >
+                <div className="w-12 h-1 rounded-full bg-[#252d40] group-hover:bg-blue-400 transition" />
+              </div>
+            )}
+          </div>
+
+          {/* Bottom analytics panel */}
+          {showBottomPanel && (
+            <div
+              className="shrink-0 overflow-hidden bg-[#0c1018] border-t border-[#1e2333]"
+              style={{ height: bottomH }}
+            >
+              <BottomPanel />
+            </div>
+          )}
+        </div>
+
+        {/* ── Right Execution Panel ── */}
+        {showRightSidebar && (
+          <div
+            className="shrink-0 flex relative overflow-hidden border-l border-[#1e2333]"
+            style={{ width: sidebarW }}
+          >
+            {/* Left drag handle */}
+            <div
+              onMouseDown={handleRightMouseDown}
+              className="absolute left-0 top-0 bottom-0 w-1 hover:w-1.5 bg-transparent hover:bg-blue-500/30 cursor-ew-resize z-20 flex items-center justify-center group"
+            >
+              <div className="h-12 w-0.5 rounded-full bg-[#252d40] group-hover:bg-blue-400 transition" />
+            </div>
+            <div className="flex-1 overflow-hidden pl-0.5">
+              <ExecutionPanel />
+            </div>
           </div>
         )}
       </div>
 
-      {/* Right Sidebar */}
-      {!isFullscreen && showRightSidebar && (
-        <div className="col-start-3 row-start-2 row-span-2 overflow-hidden flex relative bg-[#0a0e17]">
-          {/* Left Horizontal Resizer Handle */}
-          <div
-            onMouseDown={handleRightMouseDown}
-            className="w-1.5 hover:w-2 h-full bg-transparent hover:bg-blue-500/40 cursor-ew-resize transition-all z-30 flex items-center justify-center absolute left-0 top-0 bottom-0 group"
-          >
-            <div className="h-12 w-1 bg-gray-600 rounded-full group-hover:bg-blue-400 opacity-60" />
-          </div>
-          <div className="flex-1 overflow-hidden">
-            <RightSidebar />
-          </div>
-        </div>
-      )}
-
-      {/* Bottom Panel */}
-      {!isFullscreen && showBottomPanel && (
-        <div className="col-start-2 row-start-3 overflow-hidden bg-[#0a0e17]">
-          <BottomPanel />
-        </div>
-      )}
+      {/* ── ROW 3: Replay Bar (always pinned to bottom) ── */}
+      <div className="shrink-0" style={{ height: replayBarH }}>
+        <ReplayBar />
+      </div>
 
       {/* Global Modals */}
       <CommandPaletteModal />
       <ChartSettingsModal />
       <ObjectTreeModal />
       <PropFirmModal />
-      <JumpToDateModal
-        isOpen={isJumpToDateModalOpen}
-        onClose={() => setJumpToDateModalOpen(false)}
-      />
+      <JumpToDateModal isOpen={isJumpToDateModalOpen} onClose={() => setJumpToDateModalOpen(false)} />
     </div>
   );
 }
