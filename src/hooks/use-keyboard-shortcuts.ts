@@ -22,6 +22,9 @@ export function useKeyboardShortcuts() {
 
   const activeSymbol = useChartStore((s) => s.activeSymbol);
   const setActiveTool = useChartStore((s) => s.setActiveTool);
+  const selectedDrawingId = useChartStore((s) => s.selectedDrawingId);
+  const setSelectedDrawingId = useChartStore((s) => s.setSelectedDrawingId);
+  const deleteDrawing = useChartStore((s) => s.deleteDrawing);
 
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
   const setJumpToDateModalOpen = useUIStore((s) => s.setJumpToDateModalOpen);
@@ -164,6 +167,16 @@ export function useKeyboardShortcuts() {
       } else if (e.code === 'Escape') {
         setActiveTool(null);
       }
+
+      // Delete / Backspace: delete selected drawing
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !e.metaKey && !e.ctrlKey) {
+        if (selectedDrawingId) {
+          e.preventDefault();
+          deleteDrawing(selectedDrawingId);
+          setSelectedDrawingId(null);
+          soundEngine.playStep();
+        }
+      }
     };
 
     window.addEventListener('keydown', handler);
@@ -182,6 +195,9 @@ export function useKeyboardShortcuts() {
     placeMarketOrder,
     closePosition,
     setActiveTool,
+    selectedDrawingId,
+    setSelectedDrawingId,
+    deleteDrawing,
     setCommandPaletteOpen,
     setJumpToDateModalOpen,
     toggleFullscreen,

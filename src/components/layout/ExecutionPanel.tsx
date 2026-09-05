@@ -51,6 +51,7 @@ export function ExecutionPanel() {
   const placePendingOrder = useTradingStore((s) => s.placePendingOrder);
   const closePosition = useTradingStore((s) => s.closePosition);
   const closePartialPosition = useTradingStore((s) => s.closePartialPosition);
+  const updateStopLossTakeProfit = useTradingStore((s) => s.updateStopLossTakeProfit);
   const resetAccount = useTradingStore((s) => s.resetAccount);
 
   useEffect(() => {
@@ -204,19 +205,46 @@ export function ExecutionPanel() {
               {formatPnL(activePosition.grossPnL)}
             </div>
 
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-5 gap-1">
+              <button
+                onClick={() => {
+                  if (activePosition) {
+                    updateStopLossTakeProfit(activePosition.id, activePosition.entryPrice, activePosition.takeProfit);
+                  }
+                }}
+                className="py-1 rounded bg-[#1a2236] hover:bg-[#222e48] text-amber-300 hover:text-amber-200 transition cursor-pointer text-[10px] font-bold border border-[#252d42]"
+                title="Move Stop Loss to Breakeven"
+              >
+                BE
+              </button>
               <button
                 onClick={() => symbolObj && closePartialPosition(activePosition.id, 0.25, currentPrice, currentCandle?.timestamp || Date.now(), symbolObj)}
                 className="py-1 rounded bg-[#1a2236] hover:bg-[#222e48] text-gray-300 hover:text-white transition cursor-pointer text-[10px] font-bold border border-[#252d42]"
-              >25%</button>
+                title="Close 25%"
+              >
+                25%
+              </button>
               <button
                 onClick={() => symbolObj && closePartialPosition(activePosition.id, 0.5, currentPrice, currentCandle?.timestamp || Date.now(), symbolObj)}
                 className="py-1 rounded bg-[#1a2236] hover:bg-[#222e48] text-gray-300 hover:text-white transition cursor-pointer text-[10px] font-bold border border-[#252d42]"
-              >50%</button>
+                title="Close 50%"
+              >
+                50%
+              </button>
+              <button
+                onClick={() => symbolObj && closePartialPosition(activePosition.id, 0.75, currentPrice, currentCandle?.timestamp || Date.now(), symbolObj)}
+                className="py-1 rounded bg-[#1a2236] hover:bg-[#222e48] text-gray-300 hover:text-white transition cursor-pointer text-[10px] font-bold border border-[#252d42]"
+                title="Close 75%"
+              >
+                75%
+              </button>
               <button
                 onClick={() => symbolObj && closePosition(activePosition.id, currentPrice, currentCandle?.timestamp || Date.now(), symbolObj)}
                 className="py-1 rounded bg-rose-600/80 hover:bg-rose-500 text-white transition cursor-pointer text-[10px] font-bold"
-              >Flatten</button>
+                title="Close Entire Position"
+              >
+                Flatten
+              </button>
             </div>
           </div>
         </div>

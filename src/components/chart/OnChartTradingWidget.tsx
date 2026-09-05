@@ -174,7 +174,7 @@ export function OnChartTradingWidget() {
         <div className="bg-[#0b101d]/95 backdrop-blur-md border border-[#1d273f] rounded-xl shadow-2xl p-2.5 flex items-center space-x-3 text-[11px] text-gray-300 animate-fadeIn">
           <div className="flex items-center space-x-1.5">
             <span className="text-rose-400 font-bold">SL:</span>
-            {[10, 20, 30, 40].map((t) => (
+            {[5, 10, 15, 20, 30, 40].map((t) => (
               <button
                 key={t}
                 onClick={() => setSlTicks(t)}
@@ -192,7 +192,7 @@ export function OnChartTradingWidget() {
 
           <div className="flex items-center space-x-1.5">
             <span className="text-emerald-400 font-bold">TP:</span>
-            {[20, 40, 60, 80].map((t) => (
+            {[10, 20, 30, 40, 60, 80].map((t) => (
               <button
                 key={t}
                 onClick={() => setTpTicks(t)}
@@ -210,7 +210,7 @@ export function OnChartTradingWidget() {
 
       {/* Active Position Floating Banner & 1-Click Breakeven / Close */}
       {activePosition && (
-        <div className="bg-[#0b101d]/95 backdrop-blur-md border border-[#1d273f] rounded-xl shadow-2xl px-2.5 py-1.5 flex items-center space-x-2.5 animate-fadeIn">
+        <div className="bg-[#0b101d]/95 backdrop-blur-md border border-[#1d273f] rounded-xl shadow-2xl px-2.5 py-1.5 flex items-center space-x-2 animate-fadeIn">
           <span
             className={cn(
               'px-1.5 py-0.5 rounded text-[10px] font-black',
@@ -244,15 +244,31 @@ export function OnChartTradingWidget() {
             className="px-2 py-0.5 rounded bg-[#151d30] hover:bg-[#1f2c4a] border border-[#233252] text-amber-300 hover:text-amber-200 text-[10px] font-bold cursor-pointer transition"
             title="Move Stop Loss to Entry Price (Breakeven)"
           >
-            BE (Breakeven)
+            BE
+          </button>
+
+          <button
+            onClick={() => closePartialPosition(activePosition.id, 0.25, currentPrice, currentTs, symbolObj)}
+            className="px-1.5 py-0.5 rounded bg-[#151d30] hover:bg-[#1f2c4a] border border-[#233252] text-blue-300 hover:text-blue-200 text-[10px] font-bold cursor-pointer transition"
+            title="Close 25% of position"
+          >
+            25%
           </button>
 
           <button
             onClick={() => closePartialPosition(activePosition.id, 0.5, currentPrice, currentTs, symbolObj)}
-            className="px-2 py-0.5 rounded bg-[#151d30] hover:bg-[#1f2c4a] border border-[#233252] text-blue-300 hover:text-blue-200 text-[10px] font-bold cursor-pointer transition"
+            className="px-1.5 py-0.5 rounded bg-[#151d30] hover:bg-[#1f2c4a] border border-[#233252] text-blue-300 hover:text-blue-200 text-[10px] font-bold cursor-pointer transition"
             title="Close 50% of position"
           >
-            Close 50%
+            50%
+          </button>
+
+          <button
+            onClick={() => closePartialPosition(activePosition.id, 0.75, currentPrice, currentTs, symbolObj)}
+            className="px-1.5 py-0.5 rounded bg-[#151d30] hover:bg-[#1f2c4a] border border-[#233252] text-blue-300 hover:text-blue-200 text-[10px] font-bold cursor-pointer transition"
+            title="Close 75% of position"
+          >
+            75%
           </button>
 
           <button

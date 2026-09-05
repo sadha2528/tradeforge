@@ -6,6 +6,8 @@ import { useTradingStore } from '@/store/trading-store';
 import { useReplayStore } from '@/store/replay-store';
 import { marketDataService } from '@/lib/market-data/market-data-service';
 import { ChartManager } from '@/lib/chart/chart-manager';
+import { InstrumentRegistry } from '@/lib/trading-engine/instrument-registry';
+import { soundEngine } from '@/lib/audio/sound-engine';
 import { formatCurrency, formatPnL, formatDuration } from '@/lib/utils/formatting';
 import { snapToCandleOHLC } from '@/lib/chart/magnet';
 import type { Drawing, DrawingTool, DrawingPoint } from '@/types/chart';
@@ -38,6 +40,13 @@ type DragTarget =
   | { type: 'drawing_tp'; drawingId: string }
   | null;
 
+interface DragState {
+  target: DragTarget;
+  startY: number;
+  currentPrice: number;
+  isDragging: boolean;
+}
+
 interface ContextMenuState {
   x: number;
   y: number;
@@ -49,7 +58,8 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [activePoints, setActivePoints] = useState<DrawingPoint[]>([]);
   const [hoverPoint, setHoverPoint] = useState<DrawingPoint | null>(null);
-  const [dragTarget, setDragTarget] = useState<DragTarget>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const [cursorStyle, setCursorStyle] = useState<string>('default');
   const [symbolObj, setSymbolObj] = useState<Symbol | null>(null);
 
   // Context Menu State
@@ -119,12 +129,44 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
 
     ctx.clearRect(0, 0, width, height);
 
-    // 1. Draw Active Open Positions SL / TP Lines & Draggable Handles
+    // 1. Draw Active Open Positions SL / TP Lines, Shaded Risk/Reward Zones & Draggable Handles
+    const inst = InstrumentRegistry.getInstrument(activeSymbol);
+    const tickSz = inst?.tickSize || symbolObj?.tickSize || 0.25;
+    const tickVal = inst?.tickValue || symbolObj?.tickValue || 12.50;
+    const precision = inst?.pricePrecision || symbolObj?.pricePrecision || 2;
+
     positions.forEach((pos) => {
       if (pos.symbol !== activeSymbol) return;
 
+      const isSlDragging = dragState?.target?.type === 'position_sl' && dragState.target.positionId === pos.id;
+      const isTpDragging = dragState?.target?.type === 'position_tp' && dragState.target.positionId === pos.id;
+      const currentSl = isSlDragging ? dragState.currentPrice : pos.stopLoss;
+      const currentTp = isTpDragging ? dragState.currentPrice : pos.takeProfit;
+
       const entryY = chartManager.priceToCoordinate(pos.entryPrice);
       if (entryY !== null) {
+        // Translucent Shaded Risk Band (Red)
+        if (currentSl !== null && currentSl !== undefined) {
+          const slY = chartManager.priceToCoordinate(currentSl);
+          if (slY !== null) {
+            const topY = Math.min(entryY, slY);
+            const bandH = Math.abs(slY - entryY);
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.08)';
+            ctx.fillRect(0, topY, width, bandH);
+          }
+        }
+
+        // Translucent Shaded Reward Band (Green)
+        if (currentTp !== null && currentTp !== undefined) {
+          const tpY = chartManager.priceToCoordinate(currentTp);
+          if (tpY !== null) {
+            const topY = Math.min(entryY, tpY);
+            const bandH = Math.abs(tpY - entryY);
+            ctx.fillStyle = 'rgba(34, 197, 94, 0.08)';
+            ctx.fillRect(0, topY, width, bandH);
+          }
+        }
+
         // Entry Price Line
         ctx.strokeStyle = pos.side === 'long' ? '#3b82f6' : '#ec4899';
         ctx.lineWidth = 1.5;
@@ -136,23 +178,21 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
         ctx.setLineDash([]);
 
         // Entry Badge
-        ctx.fillStyle = pos.side === 'long' ? '#3b82f6' : '#ec4899';
-        ctx.fillRect(width - 100, entryY - 9, 95, 18);
-        ctx.fillStyle = '#ffffff';
+        const entryText = `${pos.side.toUpperCase()} ${pos.quantity} @ ${pos.entryPrice.toFixed(precision)}`;
         ctx.font = 'bold 10px JetBrains Mono';
-        ctx.fillText(
-          `${pos.side.toUpperCase()} ${pos.quantity} @ ${pos.entryPrice.toFixed(symbolObj?.pricePrecision || 2)}`,
-          width - 95,
-          entryY + 4
-        );
+        const entryW = ctx.measureText(entryText).width + 16;
+        ctx.fillStyle = pos.side === 'long' ? '#3b82f6' : '#ec4899';
+        ctx.fillRect(width - entryW - 10, entryY - 10, entryW, 20);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(entryText, width - entryW - 2, entryY + 4);
       }
 
       // Stop Loss Line & Draggable Handle
-      if (pos.stopLoss) {
-        const slY = chartManager.priceToCoordinate(pos.stopLoss);
+      if (currentSl !== null && currentSl !== undefined) {
+        const slY = chartManager.priceToCoordinate(currentSl);
         if (slY !== null) {
-          ctx.strokeStyle = '#ef4444';
-          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = isSlDragging ? '#f87171' : '#ef4444';
+          ctx.lineWidth = isSlDragging ? 2 : 1.5;
           ctx.setLineDash([4, 2]);
           ctx.beginPath();
           ctx.moveTo(0, slY);
@@ -160,27 +200,38 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
           ctx.stroke();
           ctx.setLineDash([]);
 
-          // SL Price Badge & Drag Handle
-          ctx.fillStyle = '#ef4444';
-          ctx.fillRect(width - 85, slY - 9, 80, 18);
-          ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 10px JetBrains Mono';
-          ctx.fillText(`SL: ${pos.stopLoss.toFixed(2)}`, width - 80, slY + 4);
+          const points = Math.abs(pos.entryPrice - currentSl);
+          const ticks = Math.round(points / tickSz);
+          const dollarRisk = ticks * tickVal * pos.quantity;
 
-          // Drag Handle Dot
+          // Drag Handle Dot with Halo Ring
+          ctx.fillStyle = isSlDragging ? '#f87171' : '#ef4444';
+          ctx.beginPath();
+          ctx.arc(width - 250, slY, 6, 0, Math.PI * 2);
+          ctx.fill();
           ctx.fillStyle = '#ffffff';
           ctx.beginPath();
-          ctx.arc(width - 95, slY, 4, 0, Math.PI * 2);
+          ctx.arc(width - 250, slY, 3, 0, Math.PI * 2);
           ctx.fill();
+
+          // SL Price & Risk Badge
+          const slText = `SL: ${currentSl.toFixed(precision)} (-${ticks}t · -$${dollarRisk.toFixed(0)})`;
+          ctx.font = 'bold 10px JetBrains Mono';
+          const badgeW = ctx.measureText(slText).width + 16;
+          const badgeX = width - badgeW - 10;
+          ctx.fillStyle = isSlDragging ? '#dc2626' : '#ef4444';
+          ctx.fillRect(badgeX, slY - 10, badgeW, 20);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(slText, badgeX + 8, slY + 4);
         }
       }
 
       // Take Profit Line & Draggable Handle
-      if (pos.takeProfit) {
-        const tpY = chartManager.priceToCoordinate(pos.takeProfit);
+      if (currentTp !== null && currentTp !== undefined) {
+        const tpY = chartManager.priceToCoordinate(currentTp);
         if (tpY !== null) {
-          ctx.strokeStyle = '#22c55e';
-          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = isTpDragging ? '#4ade80' : '#22c55e';
+          ctx.lineWidth = isTpDragging ? 2 : 1.5;
           ctx.setLineDash([4, 2]);
           ctx.beginPath();
           ctx.moveTo(0, tpY);
@@ -188,18 +239,55 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
           ctx.stroke();
           ctx.setLineDash([]);
 
-          // TP Price Badge & Drag Handle
-          ctx.fillStyle = '#22c55e';
-          ctx.fillRect(width - 85, tpY - 9, 80, 18);
-          ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 10px JetBrains Mono';
-          ctx.fillText(`TP: ${pos.takeProfit.toFixed(2)}`, width - 80, tpY + 4);
+          const points = Math.abs(currentTp - pos.entryPrice);
+          const ticks = Math.round(points / tickSz);
+          const dollarReward = ticks * tickVal * pos.quantity;
 
-          // Drag Handle Dot
+          // Drag Handle Dot with Halo Ring
+          ctx.fillStyle = isTpDragging ? '#4ade80' : '#22c55e';
+          ctx.beginPath();
+          ctx.arc(width - 250, tpY, 6, 0, Math.PI * 2);
+          ctx.fill();
           ctx.fillStyle = '#ffffff';
           ctx.beginPath();
-          ctx.arc(width - 95, tpY, 4, 0, Math.PI * 2);
+          ctx.arc(width - 250, tpY, 3, 0, Math.PI * 2);
           ctx.fill();
+
+          // TP Price & Reward Badge
+          const tpText = `TP: ${currentTp.toFixed(precision)} (+${ticks}t · +$${dollarReward.toFixed(0)})`;
+          ctx.font = 'bold 10px JetBrains Mono';
+          const badgeW = ctx.measureText(tpText).width + 16;
+          const badgeX = width - badgeW - 10;
+          ctx.fillStyle = isTpDragging ? '#16a34a' : '#22c55e';
+          ctx.fillRect(badgeX, tpY - 10, badgeW, 20);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(tpText, badgeX + 8, tpY + 4);
+        }
+      }
+
+      // R:R Indicator Pill
+      if (
+        currentSl !== null &&
+        currentSl !== undefined &&
+        currentTp !== null &&
+        currentTp !== undefined &&
+        entryY !== null
+      ) {
+        const slPts = Math.abs(pos.entryPrice - currentSl);
+        const tpPts = Math.abs(currentTp - pos.entryPrice);
+        if (slPts > 0) {
+          const ratio = (tpPts / slPts).toFixed(2);
+          const rrText = `R:R 1 : ${ratio}`;
+          ctx.font = 'bold 9px JetBrains Mono';
+          const rrW = ctx.measureText(rrText).width + 12;
+          const rrX = width - 270 - rrW;
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(rrX, entryY - 9, rrW, 18);
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(rrX, entryY - 9, rrW, 18);
+          ctx.fillStyle = '#38bdf8';
+          ctx.fillText(rrText, rrX + 6, entryY + 3);
         }
       }
     });
@@ -466,6 +554,43 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
       }
       ctx.setLineDash([]);
     }
+
+    // 4. Draw Floating Dragging HUD when dragging SL/TP
+    if (dragState?.isDragging && dragState.currentPrice !== null) {
+      const isSL = dragState.target?.type === 'position_sl';
+      const isTP = dragState.target?.type === 'position_tp';
+      if (isSL || isTP) {
+        const pos = positions.find((p) => p.id === (dragState.target as any).positionId);
+        if (pos) {
+          const deltaPts = Math.abs(pos.entryPrice - dragState.currentPrice);
+          const ticks = Math.round(deltaPts / tickSz);
+          const dollars = ticks * tickVal * pos.quantity;
+          const title = isSL ? 'ADJUSTING STOP LOSS' : 'ADJUSTING TAKE PROFIT';
+          const color = isSL ? '#ef4444' : '#22c55e';
+
+          const yCoord = chartManager.priceToCoordinate(dragState.currentPrice);
+          const boxW = 220;
+          const boxH = 48;
+          const boxX = Math.max(10, Math.min(width - boxW - 10, width / 2 - boxW / 2));
+          const boxY = yCoord !== null ? Math.max(10, Math.min(height - boxH - 10, yCoord - 58)) : 60;
+
+          ctx.fillStyle = 'rgba(11, 16, 29, 0.95)';
+          ctx.fillRect(boxX, boxY, boxW, boxH);
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+          ctx.fillStyle = color;
+          ctx.font = 'bold 10px JetBrains Mono';
+          ctx.fillText(title, boxX + 10, boxY + 16);
+
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 12px JetBrains Mono';
+          const detailText = `${dragState.currentPrice.toFixed(precision)} (${isSL ? '-' : '+'}${ticks}t · ${isSL ? '-' : '+'}$${dollars.toFixed(0)})`;
+          ctx.fillText(detailText, boxX + 10, boxY + 35);
+        }
+      }
+    }
     }
   }, [
     chartManager,
@@ -480,11 +605,13 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
     width,
     height,
     symbolObj,
+    dragState,
     getPixelFromCoordinates,
   ]);
 
   // Handle Canvas Mouse Clicks
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (dragState?.isDragging) return;
     // Close context menu if open
     if (contextMenu) setContextMenu(null);
 
@@ -603,13 +730,119 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
     });
   };
 
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.button !== 0) return; // Only left click
+    if (activeTool && activeTool !== 'crosshair') return;
+
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect || !chartManager) return;
+    const y = e.clientY - rect.top;
+
+    // Check active positions for SL or TP line/handle clicks
+    for (const pos of positions) {
+      if (pos.symbol !== activeSymbol) continue;
+
+      if (pos.stopLoss) {
+        const slY = chartManager.priceToCoordinate(pos.stopLoss);
+        if (slY !== null && Math.abs(y - slY) <= 12) {
+          setDragState({
+            target: { type: 'position_sl', positionId: pos.id },
+            startY: y,
+            currentPrice: pos.stopLoss,
+            isDragging: false,
+          });
+          e.preventDefault();
+          return;
+        }
+      }
+
+      if (pos.takeProfit) {
+        const tpY = chartManager.priceToCoordinate(pos.takeProfit);
+        if (tpY !== null && Math.abs(y - tpY) <= 12) {
+          setDragState({
+            target: { type: 'position_tp', positionId: pos.id },
+            startY: y,
+            currentPrice: pos.takeProfit,
+            isDragging: false,
+          });
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+  };
+
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    if (!rect || !chartManager) return;
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    if (dragState) {
+      if (!dragState.isDragging && Math.abs(y - dragState.startY) > 3) {
+        setDragState((prev) => (prev ? { ...prev, isDragging: true } : null));
+      }
+
+      const rawPrice = chartManager.coordinateToPrice(y);
+      if (rawPrice !== null) {
+        const inst = InstrumentRegistry.getInstrument(activeSymbol);
+        const tick = inst?.tickSize || symbolObj?.tickSize || 0.25;
+        const quantizedPrice = Math.round(rawPrice / tick) * tick;
+        setDragState((prev) => (prev ? { ...prev, isDragging: true, currentPrice: quantizedPrice } : null));
+      }
+      return;
+    }
+
     const pt = getCoordinatesFromPixel(x, y);
     if (pt) setHoverPoint(pt);
+
+    // Dynamic cursor detection when hovering over SL/TP
+    if (!activeTool || activeTool === 'crosshair') {
+      let isNear = false;
+      for (const pos of positions) {
+        if (pos.symbol !== activeSymbol) continue;
+        if (pos.stopLoss) {
+          const slY = chartManager.priceToCoordinate(pos.stopLoss);
+          if (slY !== null && Math.abs(y - slY) <= 10) {
+            isNear = true;
+            break;
+          }
+        }
+        if (pos.takeProfit) {
+          const tpY = chartManager.priceToCoordinate(pos.takeProfit);
+          if (tpY !== null && Math.abs(y - tpY) <= 10) {
+            isNear = true;
+            break;
+          }
+        }
+      }
+      setCursorStyle(isNear ? 'ns-resize' : 'default');
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (dragState && dragState.isDragging && dragState.currentPrice !== null && dragState.target) {
+      const target = dragState.target;
+      if (target.type === 'position_sl') {
+        const pos = positions.find((p) => p.id === target.positionId);
+        updateStopLossTakeProfit(target.positionId, dragState.currentPrice, pos?.takeProfit);
+        soundEngine.playStep();
+      } else if (target.type === 'position_tp') {
+        const pos = positions.find((p) => p.id === target.positionId);
+        updateStopLossTakeProfit(target.positionId, pos?.stopLoss, dragState.currentPrice);
+        soundEngine.playStep();
+      }
+    }
+    setDragState(null);
+  };
+
+  const handleMouseLeave = () => {
+    if (dragState && dragState.isDragging && dragState.currentPrice !== null) {
+      handleMouseUp();
+    } else {
+      setDragState(null);
+    }
+    setHoverPoint(null);
   };
 
   // Subscribe to chart visible range changes to redraw during pan/zoom
@@ -642,10 +875,12 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
         height={height}
         onClick={handleCanvasClick}
         onContextMenu={handleContextMenu}
+        onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
-        className={`absolute inset-0 z-10 ${
-          activeTool ? 'cursor-crosshair pointer-events-auto' : 'pointer-events-auto cursor-default'
-        }`}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+        style={{ cursor: activeTool ? 'crosshair' : cursorStyle }}
+        className="absolute inset-0 z-10 pointer-events-auto"
       />
 
       {/* Right Click Context Menu */}

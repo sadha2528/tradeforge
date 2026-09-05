@@ -50,5 +50,5 @@ export interface Trade extends Position {
   screenshotUrl: string | null;
 }
 
-export type ExecutionAssumption = 'conservative' | 'optimistic' | 'random' | 'path-aware';
+export type ExecutionAssumption = 'conservative' | 'optimistic' | 'stop-first' | 'target-first' | 'random' | 'path-aware';
 export type PositionSizingMethod = 'fixed-quantity' | 'fixed-dollar' | 'percentage-risk';

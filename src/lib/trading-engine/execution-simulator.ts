@@ -122,15 +122,22 @@ export function evaluateOpenPositions(
     let exitPrice = candle.close;
     let exitReason = 'manual';
 
+    const preferTarget = settings.executionAssumption === 'target-first' || settings.executionAssumption === 'optimistic';
+
     if (pos.side === 'long') {
       const slHit = pos.stopLoss !== null && candle.low <= pos.stopLoss;
       const tpHit = pos.takeProfit !== null && candle.high >= pos.takeProfit;
 
       if (slHit && tpHit) {
-        // Same-candle collision -> apply Conservative model (SL first)
+        // Same-candle collision -> apply configurable policy
         isClosed = true;
-        exitPrice = pos.stopLoss!;
-        exitReason = 'sl';
+        if (preferTarget) {
+          exitPrice = pos.takeProfit!;
+          exitReason = 'tp';
+        } else {
+          exitPrice = pos.stopLoss!;
+          exitReason = 'sl';
+        }
       } else if (slHit) {
         isClosed = true;
         exitPrice = pos.stopLoss!;
@@ -145,10 +152,15 @@ export function evaluateOpenPositions(
       const tpHit = pos.takeProfit !== null && candle.low <= pos.takeProfit;
 
       if (slHit && tpHit) {
-        // Conservative: SL hit first
+        // Same-candle collision -> apply configurable policy
         isClosed = true;
-        exitPrice = pos.stopLoss!;
-        exitReason = 'sl';
+        if (preferTarget) {
+          exitPrice = pos.takeProfit!;
+          exitReason = 'tp';
+        } else {
+          exitPrice = pos.stopLoss!;
+          exitReason = 'sl';
+        }
       } else if (slHit) {
         isClosed = true;
         exitPrice = pos.stopLoss!;

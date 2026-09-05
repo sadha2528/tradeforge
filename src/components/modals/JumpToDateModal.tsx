@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Calendar, Clock, ArrowRight, X, Sparkles } from 'lucide-react';
 import { useReplayStore } from '@/store/replay-store';
 import { useChartStore } from '@/store/chart-store';
+import { cn } from '@/lib/utils';
 
 interface JumpToDateModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ export function JumpToDateModal({ isOpen, onClose }: JumpToDateModalProps) {
 
   const [dateVal, setDateVal] = useState(defaultDateStr);
   const [timeVal, setTimeVal] = useState(defaultTimeStr);
+  const [timezone, setTimezone] = useState<'ET' | 'UTC'>('ET');
   const [contextBars, setContextBars] = useState(60);
 
   if (!isOpen) return null;
@@ -38,30 +40,49 @@ export function JumpToDateModal({ isOpen, onClose }: JumpToDateModalProps) {
     ? new Date(lastCandle.timestamp).toISOString().slice(0, 10)
     : undefined;
 
-  const handlePreset = (preset: 'start' | 'ny_open' | 'london_open' | 'cme_open' | 'halfway') => {
+  const handleDayShift = (days: number) => {
+    const current = new Date(dateVal + 'T12:00:00Z');
+    current.setUTCDate(current.getUTCDate() + days);
+    setDateVal(current.toISOString().slice(0, 10));
+  };
+
+  const handlePreset = (preset: 'start' | 'rth_open' | 'london_open' | 'globex_open' | 'halfway') => {
     if (!firstCandle || !lastCandle) return;
 
     if (preset === 'start') {
       const d = new Date(firstCandle.timestamp);
       setDateVal(d.toISOString().slice(0, 10));
-      setTimeVal(d.toISOString().slice(11, 16));
+      setTimeVal(timezone === 'ET' ? '09:30' : d.toISOString().slice(11, 16));
     } else if (preset === 'halfway') {
       const midTs = firstCandle.timestamp + (lastCandle.timestamp - firstCandle.timestamp) / 2;
       const d = new Date(midTs);
       setDateVal(d.toISOString().slice(0, 10));
-      setTimeVal(d.toISOString().slice(11, 16));
-    } else if (preset === 'ny_open') {
-      setTimeVal('13:30'); // 13:30 UTC = 09:30 EST
+      setTimeVal(timezone === 'ET' ? '09:30' : d.toISOString().slice(11, 16));
+    } else if (preset === 'rth_open') {
+      setTimeVal(timezone === 'ET' ? '09:30' : '13:30');
     } else if (preset === 'london_open') {
-      setTimeVal('08:00'); // 08:00 UTC = 08:00 GMT
-    } else if (preset === 'cme_open') {
-      setTimeVal('22:00'); // 22:00 UTC = 18:00 EST
+      setTimeVal(timezone === 'ET' ? '03:00' : '08:00');
+    } else if (preset === 'globex_open') {
+      setTimeVal(timezone === 'ET' ? '18:00' : '22:00');
     }
   };
 
   const handleJump = () => {
-    const combinedStr = `${dateVal}T${timeVal}:00Z`;
-    const targetTs = Date.parse(combinedStr);
+    let targetTs: number;
+
+    if (timezone === 'UTC') {
+      const combinedStr = `${dateVal}T${timeVal}:00Z`;
+      targetTs = Date.parse(combinedStr);
+    } else {
+      // Convert America/New_York local time to UTC timestamp accurately
+      const utcNaive = new Date(`${dateVal}T${timeVal}:00Z`);
+      if (isNaN(utcNaive.getTime())) return;
+
+      // Detect Eastern Time offset (EDT is UTC-4, EST is UTC-5)
+      const nyStr = utcNaive.toLocaleString('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' });
+      const offsetHours = nyStr.includes('EDT') ? 4 : 5;
+      targetTs = utcNaive.getTime() + offsetHours * 60 * 60 * 1000;
+    }
 
     if (!isNaN(targetTs)) {
       jumpToTimestamp(targetTs, contextBars);
@@ -79,9 +100,9 @@ export function JumpToDateModal({ isOpen, onClose }: JumpToDateModalProps) {
               <Calendar className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-white">Jump to Historical Date</h2>
+              <h2 className="text-sm font-semibold text-white">Jump to Historical Date &amp; Session</h2>
               <p className="text-[11px] text-gray-400">
-                {activeSymbol} ({activeTimeframe}) Replay Engine
+                {activeSymbol} ({activeTimeframe}) Futures Replay Clock
               </p>
             </div>
           </div>
@@ -95,40 +116,81 @@ export function JumpToDateModal({ isOpen, onClose }: JumpToDateModalProps) {
 
         {/* Body */}
         <div className="p-5 space-y-4 text-xs">
-          {/* Preset Chips */}
+          {/* Timezone Switch & Preset Chips */}
           <div>
-            <label className="block text-[11px] text-gray-400 mb-1.5 font-medium flex items-center space-x-1">
-              <Sparkles className="w-3 h-3 text-amber-400" />
-              <span>Quick Session Presets</span>
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[11px] text-gray-400 font-medium flex items-center space-x-1">
+                <Sparkles className="w-3 h-3 text-amber-400" />
+                <span>Futures Session Presets</span>
+              </label>
+
+              {/* Timezone Toggle */}
+              <div className="flex items-center bg-[#111726] border border-[#1d273d] rounded p-0.5 text-[10px] font-mono">
+                <button
+                  type="button"
+                  onClick={() => setTimezone('ET')}
+                  className={cn(
+                    'px-2 py-0.5 rounded font-bold transition cursor-pointer',
+                    timezone === 'ET' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200'
+                  )}
+                >
+                  ET (New York)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTimezone('UTC')}
+                  className={cn(
+                    'px-2 py-0.5 rounded font-bold transition cursor-pointer',
+                    timezone === 'UTC' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200'
+                  )}
+                >
+                  UTC
+                </button>
+              </div>
+            </div>
+
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
-                onClick={() => handlePreset('start')}
-                className="px-2.5 py-1 rounded bg-[#151c2d] hover:bg-[#1c263c] border border-[#232f48] text-gray-300 hover:text-white transition"
+                onClick={() => handlePreset('rth_open')}
+                className="px-2.5 py-1 rounded bg-[#151c2d] hover:bg-[#1c263c] border border-[#232f48] text-emerald-400 hover:text-emerald-300 font-medium transition cursor-pointer"
               >
-                Beginning of Data
-              </button>
-              <button
-                type="button"
-                onClick={() => handlePreset('ny_open')}
-                className="px-2.5 py-1 rounded bg-[#151c2d] hover:bg-[#1c263c] border border-[#232f48] text-gray-300 hover:text-white transition"
-              >
-                NY Open (13:30 UTC)
+                RTH Open ({timezone === 'ET' ? '09:30 ET' : '13:30 UTC'})
               </button>
               <button
                 type="button"
                 onClick={() => handlePreset('london_open')}
-                className="px-2.5 py-1 rounded bg-[#151c2d] hover:bg-[#1c263c] border border-[#232f48] text-gray-300 hover:text-white transition"
+                className="px-2.5 py-1 rounded bg-[#151c2d] hover:bg-[#1c263c] border border-[#232f48] text-blue-400 hover:text-blue-300 font-medium transition cursor-pointer"
               >
-                London Open (08:00 UTC)
+                London Open ({timezone === 'ET' ? '03:00 ET' : '08:00 UTC'})
               </button>
               <button
                 type="button"
-                onClick={() => handlePreset('cme_open')}
-                className="px-2.5 py-1 rounded bg-[#151c2d] hover:bg-[#1c263c] border border-[#232f48] text-amber-300 hover:text-white transition"
+                onClick={() => handlePreset('globex_open')}
+                className="px-2.5 py-1 rounded bg-[#151c2d] hover:bg-[#1c263c] border border-[#232f48] text-amber-300 hover:text-white font-medium transition cursor-pointer"
               >
-                CME Futures (22:00 UTC)
+                Globex Open ({timezone === 'ET' ? '18:00 ET' : '22:00 UTC'})
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDayShift(-1)}
+                className="px-2 py-1 rounded bg-[#151c2d] hover:bg-[#1c263c] border border-[#232f48] text-gray-300 hover:text-white transition cursor-pointer"
+              >
+                ← Prev Day
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDayShift(1)}
+                className="px-2 py-1 rounded bg-[#151c2d] hover:bg-[#1c263c] border border-[#232f48] text-gray-300 hover:text-white transition cursor-pointer"
+              >
+                Next Day →
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePreset('start')}
+                className="px-2 py-1 rounded bg-[#151c2d] hover:bg-[#1c263c] border border-[#232f48] text-gray-400 hover:text-gray-200 transition cursor-pointer"
+              >
+                Dataset Start
               </button>
             </div>
           </div>
@@ -149,7 +211,7 @@ export function JumpToDateModal({ isOpen, onClose }: JumpToDateModalProps) {
             <div>
               <label className="block text-gray-400 mb-1 text-[11px] flex items-center space-x-1">
                 <Clock className="w-3 h-3 text-gray-400" />
-                <span>Time (UTC)</span>
+                <span>Time ({timezone})</span>
               </label>
               <input
                 type="time"

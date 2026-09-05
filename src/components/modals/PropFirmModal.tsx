@@ -16,7 +16,7 @@ import {
   type PropFirmChallengeConfig,
 } from '@/lib/prop-firm/evaluation-engine';
 import { formatCurrency, formatPnL } from '@/lib/utils/formatting';
-import { Shield, Target, AlertTriangle, CheckCircle, Flame, Award, Clock } from 'lucide-react';
+import { Shield, Target, AlertTriangle, CheckCircle, Flame, Award, Clock, Percent } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function PropFirmModal() {
@@ -82,7 +82,9 @@ export function PropFirmModal() {
               'p-3 rounded-xl border flex items-center justify-between',
               evaluation.status === 'PASSED'
                 ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
-                : evaluation.status === 'FAILED_DAILY_LOSS' || evaluation.status === 'FAILED_MAX_DRAWDOWN'
+                : evaluation.status === 'FAILED_DAILY_LOSS' ||
+                  evaluation.status === 'FAILED_MAX_DRAWDOWN' ||
+                  evaluation.status === 'FAILED_CONSISTENCY'
                 ? 'bg-rose-950/40 border-rose-500/40 text-rose-300'
                 : 'bg-blue-950/40 border-blue-500/40 text-blue-300'
             )}
@@ -103,6 +105,8 @@ export function PropFirmModal() {
                     ? 'RULE BREACH: Daily Loss Limit Hit'
                     : evaluation.status === 'FAILED_MAX_DRAWDOWN'
                     ? 'RULE BREACH: Max Trailing Drawdown Hit'
+                    : evaluation.status === 'FAILED_CONSISTENCY'
+                    ? 'RULE BREACH: Consistency Rule Breached (>40% in single day)'
                     : 'EVALUATION IN PROGRESS'}
                 </span>
                 <span className="text-[10px] opacity-80">
@@ -192,6 +196,54 @@ export function PropFirmModal() {
             <div className="flex justify-between text-[10px] text-gray-400 pt-0.5">
               <span>Remaining DD Buffer: ${evaluation.trailingDrawdownRemaining.toFixed(2)}</span>
               <span>Peak Balance: {formatCurrency(evaluation.highWaterMark)}</span>
+            </div>
+          </div>
+
+          {/* Rule 4: Consistency Rule (Max 40% in single day) */}
+          <div className="p-3 rounded-xl bg-[#0e1424] border border-[#1d273e] space-y-1.5">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-300 flex items-center space-x-1">
+                <Percent className="w-3.5 h-3.5 text-blue-400" />
+                <span>Consistency Rule (Max {evaluation.maxSingleDayProfitPercent}% in 1 Day)</span>
+              </span>
+              <span
+                className={cn(
+                  'font-bold',
+                  evaluation.isConsistencyBreached
+                    ? 'text-rose-400'
+                    : evaluation.bestDayProfitPercent > 30
+                    ? 'text-amber-400'
+                    : 'text-emerald-400'
+                )}
+              >
+                Best Day: {evaluation.bestDayProfitPercent.toFixed(1)}%
+              </span>
+            </div>
+            <div className="w-full h-2 bg-[#172033] rounded-full overflow-hidden">
+              <div
+                className={cn(
+                  'h-full rounded-full transition-all duration-300',
+                  evaluation.isConsistencyBreached
+                    ? 'bg-rose-600'
+                    : evaluation.bestDayProfitPercent > 30
+                    ? 'bg-amber-500'
+                    : 'bg-blue-500'
+                )}
+                style={{
+                  width: `${Math.min(100, (evaluation.bestDayProfitPercent / evaluation.maxSingleDayProfitPercent) * 100)}%`,
+                }}
+              />
+            </div>
+            <div className="flex justify-between text-[10px] text-gray-400 pt-0.5">
+              <span>Best Day Profit: {formatPnL(evaluation.bestDayProfit)}</span>
+              <span>
+                Status:{' '}
+                {evaluation.isConsistencyBreached ? (
+                  <strong className="text-rose-400">BREACHED (&gt;40%)</strong>
+                ) : (
+                  <strong className="text-emerald-400">COMPLIANT (≤40%)</strong>
+                )}
+              </span>
             </div>
           </div>
         </div>

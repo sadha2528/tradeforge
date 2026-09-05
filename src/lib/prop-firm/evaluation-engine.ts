@@ -7,6 +7,7 @@ export interface PropFirmChallengeConfig {
   maxTrailingDrawdown: number;   // e.g. 2000, 3000, 4500
   maxContracts: number;          // e.g. 5 standard / 50 micro
   minTradingDays: number;        // e.g. 5
+  maxSingleDayProfitPercent?: number; // e.g. 40% consistency rule
 }
 
 export const PROP_FIRM_PRESETS: Record<string, PropFirmChallengeConfig> = {
@@ -17,6 +18,7 @@ export const PROP_FIRM_PRESETS: Record<string, PropFirmChallengeConfig> = {
     maxTrailingDrawdown: 2000,
     maxContracts: 5,
     minTradingDays: 5,
+    maxSingleDayProfitPercent: 40,
   },
   '100k-challenge': {
     accountSize: 100000,
@@ -25,6 +27,7 @@ export const PROP_FIRM_PRESETS: Record<string, PropFirmChallengeConfig> = {
     maxTrailingDrawdown: 3000,
     maxContracts: 10,
     minTradingDays: 5,
+    maxSingleDayProfitPercent: 40,
   },
   '150k-challenge': {
     accountSize: 150000,
@@ -33,11 +36,12 @@ export const PROP_FIRM_PRESETS: Record<string, PropFirmChallengeConfig> = {
     maxTrailingDrawdown: 4500,
     maxContracts: 15,
     minTradingDays: 5,
+    maxSingleDayProfitPercent: 40,
   },
 };
 
 export interface PropFirmEvaluationResult {
-  status: 'PASSED' | 'IN_PROGRESS' | 'FAILED_DAILY_LOSS' | 'FAILED_MAX_DRAWDOWN';
+  status: 'PASSED' | 'IN_PROGRESS' | 'FAILED_DAILY_LOSS' | 'FAILED_MAX_DRAWDOWN' | 'FAILED_CONSISTENCY';
   currentBalance: number;
   currentEquity: number;
   highWaterMark: number;
@@ -52,6 +56,10 @@ export interface PropFirmEvaluationResult {
   isDailyLossBreached: boolean;
   isMaxDrawdownBreached: boolean;
   isMinDaysMet: boolean;
+  bestDayProfit: number;
+  bestDayProfitPercent: number;
+  maxSingleDayProfitPercent: number;
+  isConsistencyBreached: boolean;
 }
 
 export function evaluatePropFirmRules(
@@ -97,11 +105,25 @@ export function evaluatePropFirmRules(
     }
   });
 
+  // Best day profit for consistency rule evaluation (max 40% of total profit)
+  let bestDayProfit = 0;
+  dailyPnLMap.forEach((dayPnL) => {
+    if (dayPnL > bestDayProfit) {
+      bestDayProfit = dayPnL;
+    }
+  });
+
   const tradingDaysCount = dailyPnLMap.size;
   const isProfitTargetHit = netProfit >= profitTarget;
   const isDailyLossBreached = worstDailyLoss > dailyLossLimit;
   const isMaxDrawdownBreached = maxDrawdownObserved > maxTrailingDrawdown;
   const isMinDaysMet = tradingDaysCount >= minTradingDays;
+
+  const maxSingleDayProfitPercent = config.maxSingleDayProfitPercent ?? 40;
+  const bestDayProfitPercent = netProfit > 0 ? (bestDayProfit / netProfit) * 100 : 0;
+  const isConsistencyBreached =
+    isProfitTargetHit &&
+    bestDayProfitPercent > maxSingleDayProfitPercent;
 
   let status: PropFirmEvaluationResult['status'] = 'IN_PROGRESS';
   if (isDailyLossBreached) {
@@ -109,7 +131,7 @@ export function evaluatePropFirmRules(
   } else if (isMaxDrawdownBreached) {
     status = 'FAILED_MAX_DRAWDOWN';
   } else if (isProfitTargetHit && isMinDaysMet) {
-    status = 'PASSED';
+    status = isConsistencyBreached ? 'FAILED_CONSISTENCY' : 'PASSED';
   }
 
   return {
@@ -128,5 +150,9 @@ export function evaluatePropFirmRules(
     isDailyLossBreached,
     isMaxDrawdownBreached,
     isMinDaysMet,
+    bestDayProfit,
+    bestDayProfitPercent,
+    maxSingleDayProfitPercent,
+    isConsistencyBreached,
   };
 }

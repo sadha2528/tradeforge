@@ -7,7 +7,7 @@ import { useReplayStore } from '@/store/replay-store';
 import { marketDataService } from '@/lib/market-data/market-data-service';
 import { calculatePerformanceMetrics } from '@/lib/analytics/metrics-engine';
 import { exportTradesToCSV, exportPerformanceReportToJSON } from '@/lib/analytics/export-service';
-import { getRevealedEconomicEvents, type EconomicEvent } from '@/lib/calendar/economic-calendar';
+import { getSynchronizedEconomicTimeline, type EconomicReleaseViewItem } from '@/lib/calendar/economic-calendar';
 import { EquityCurveChart } from '@/components/analytics/EquityCurveChart';
 import { DrawdownChart } from '@/components/analytics/DrawdownChart';
 import { PerformanceBreakdowns } from '@/components/analytics/PerformanceBreakdowns';
@@ -83,10 +83,18 @@ export function BottomPanel() {
   // Quantitative Analytics Engine
   const metrics = calculatePerformanceMetrics(closedTrades, accountSettings.startingBalance);
 
-  // Economic Events strictly filtered up to current replay timestamp (Zero Lookahead)
-  const revealedEconomicEvents = useMemo(() => {
-    return getRevealedEconomicEvents(currentTs);
+  const [economicFilter, setEconomicFilter] = useState<'all' | 'upcoming' | 'released'>('all');
+
+  // Economic Events strictly synchronized to current replay timestamp (Zero Lookahead)
+  const economicTimeline = useMemo(() => {
+    return getSynchronizedEconomicTimeline(currentTs);
   }, [currentTs]);
+
+  const displayedEconomicEvents = useMemo(() => {
+    if (economicFilter === 'upcoming') return economicTimeline.upcoming;
+    if (economicFilter === 'released') return economicTimeline.released;
+    return economicTimeline.allVisible;
+  }, [economicTimeline, economicFilter]);
 
   const handleManualClose = (positionId: string, symbolId: string) => {
     const symObj = symbolMap.get(symbolId);
@@ -195,7 +203,7 @@ export function BottomPanel() {
               className="text-xs data-[state=active]:bg-[#141b2c] data-[state=active]:text-white text-gray-400 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 px-3 h-full flex items-center space-x-1.5 cursor-pointer"
             >
               <Globe className="w-3.5 h-3.5 text-amber-400" />
-              <span>Economic Releases ({revealedEconomicEvents.length})</span>
+              <span>Economic Releases ({displayedEconomicEvents.length})</span>
             </TabsTrigger>
 
             <TabsTrigger
@@ -554,53 +562,118 @@ export function BottomPanel() {
         </TabsContent>
 
         {/* 6. ECONOMIC CALENDAR TAB (Zero Lookahead) */}
-        <TabsContent value="economic" className="flex-1 overflow-auto p-0 m-0">
-          {revealedEconomicEvents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 py-6">
+        <TabsContent value="economic" className="flex-1 overflow-auto p-0 m-0 flex flex-col">
+          {/* Sub-filter bar */}
+          <div className="px-3 py-1.5 bg-[#090d17] border-b border-[#182338] flex items-center justify-between shrink-0">
+            <div className="flex items-center space-x-1 text-[10px]">
+              <span className="text-gray-500 mr-1 flex items-center">
+                <Filter className="w-3 h-3 mr-1" />
+                Filter:
+              </span>
+              {(['all', 'upcoming', 'released'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setEconomicFilter(f)}
+                  className={cn(
+                    'px-2 py-0.5 rounded capitalize cursor-pointer transition',
+                    economicFilter === f
+                      ? 'bg-blue-600 text-white font-bold'
+                      : 'text-gray-400 hover:text-gray-200 hover:bg-[#141b2c]'
+                  )}
+                >
+                  {f === 'all' && `All (${economicTimeline.allVisible.length})`}
+                  {f === 'upcoming' && `Upcoming (${economicTimeline.upcoming.length})`}
+                  {f === 'released' && `Released (${economicTimeline.released.length})`}
+                </button>
+              ))}
+            </div>
+
+            <span className="text-[10px] text-gray-400 font-mono">
+              Replay Clock: <span className="text-amber-400 font-bold">{new Date(currentTs).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: '2-digit', year: 'numeric' })}</span> · Zero-Lookahead Active
+            </span>
+          </div>
+
+          {displayedEconomicEvents.length === 0 ? (
+            <div className="flex flex-col items-center justify-center flex-1 text-center text-gray-500 py-6">
               <Globe className="w-7 h-7 text-gray-600 mb-1.5 opacity-50" />
-              <p className="text-xs font-semibold text-gray-300">NO ECONOMIC EVENTS RELEASED YET</p>
-              <p className="text-[11px] text-gray-500">Events appear dynamically as replay advances through their release timestamps.</p>
+              <p className="text-xs font-semibold text-gray-300">NO ECONOMIC EVENTS FOR THIS FILTER</p>
+              <p className="text-[11px] text-gray-500">Upcoming events within 7 days appear automatically; actuals unlock once replay advances through release time.</p>
             </div>
           ) : (
-            <table className="w-full text-left border-collapse text-[11px]">
-              <thead className="bg-[#0c101b] text-gray-400 border-b border-[#182338] sticky top-0">
-                <tr>
-                  <th className="p-2">Date / Time (UTC)</th>
-                  <th className="p-2">Currency</th>
-                  <th className="p-2">Event</th>
-                  <th className="p-2">Impact</th>
-                  <th className="p-2">Actual</th>
-                  <th className="p-2">Forecast</th>
-                  <th className="p-2">Previous</th>
-                  <th className="p-2">Analysis Note</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#161f33]">
-                {revealedEconomicEvents.map((e) => (
-                  <tr key={e.id} className="hover:bg-[#101726]">
-                    <td className="p-2 text-gray-300">{new Date(e.timestamp).toUTCString()}</td>
-                    <td className="p-2 font-bold text-white">{e.currency}</td>
-                    <td className="p-2 font-semibold text-gray-200">{e.event}</td>
-                    <td className="p-2">
-                      <span
-                        className={cn(
-                          'px-1.5 py-0.2 rounded text-[10px] font-bold',
-                          e.impact === 'HIGH'
-                            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                            : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                        )}
-                      >
-                        {e.impact}
-                      </span>
-                    </td>
-                    <td className="p-2 font-bold text-white">{e.actual}</td>
-                    <td className="p-2 text-gray-400">{e.forecast}</td>
-                    <td className="p-2 text-gray-400">{e.previous}</td>
-                    <td className="p-2 text-gray-400 italic">{e.note || '-'}</td>
+            <div className="flex-1 overflow-auto">
+              <table className="w-full text-left border-collapse text-[11px]">
+                <thead className="bg-[#0c101b] text-gray-400 border-b border-[#182338] sticky top-0">
+                  <tr>
+                    <th className="p-2">Date / Time (ET)</th>
+                    <th className="p-2">Status</th>
+                    <th className="p-2">Currency</th>
+                    <th className="p-2">Event</th>
+                    <th className="p-2">Impact</th>
+                    <th className="p-2">Actual</th>
+                    <th className="p-2">Forecast</th>
+                    <th className="p-2">Previous</th>
+                    <th className="p-2">Analysis Note</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-[#161f33]">
+                  {displayedEconomicEvents.map((e) => {
+                    const eventDateET = new Date(e.timestamp).toLocaleString('en-US', {
+                      timeZone: 'America/New_York',
+                      month: 'short',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: false,
+                    });
+
+                    return (
+                      <tr key={e.id} className="hover:bg-[#101726]">
+                        <td className="p-2 text-gray-300 whitespace-nowrap">
+                          {eventDateET} ET
+                        </td>
+                        <td className="p-2 whitespace-nowrap">
+                          {e.status === 'UPCOMING' ? (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                              UPCOMING
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                              RELEASED
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-2 font-bold text-white">{e.currency}</td>
+                        <td className="p-2 font-semibold text-gray-200">{e.event}</td>
+                        <td className="p-2">
+                          <span
+                            className={cn(
+                              'px-1.5 py-0.5 rounded text-[10px] font-bold',
+                              e.impact === 'HIGH'
+                                ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                            )}
+                          >
+                            {e.impact}
+                          </span>
+                        </td>
+                        <td className="p-2">
+                          {e.status === 'UPCOMING' ? (
+                            <span className="text-gray-500 font-mono italic" title="Actual is concealed until release time (Zero Lookahead)">
+                              —
+                            </span>
+                          ) : (
+                            <span className="font-bold text-white font-mono">{e.displayedActual}</span>
+                          )}
+                        </td>
+                        <td className="p-2 text-gray-400 font-mono">{e.forecast}</td>
+                        <td className="p-2 text-gray-400 font-mono">{e.previous}</td>
+                        <td className="p-2 text-gray-400 italic max-w-xs truncate">{e.note || '-'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </TabsContent>
 
