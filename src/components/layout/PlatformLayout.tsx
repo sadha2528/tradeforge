@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { SessionBar } from './SessionBar';
 import { ExecutionPanel } from './ExecutionPanel';
+import { DOMWidget } from '@/components/orderflow/DOMWidget';
 import { BottomPanel } from './BottomPanel';
 import { ReplayBar } from './ReplayBar';
 import { FloatingToolbar } from './FloatingToolbar';
@@ -36,6 +37,17 @@ export function PlatformLayout({ children }: PlatformLayoutProps) {
   } = useUIStore();
 
   const chartMode = useChartStore((s) => s.chartMode);
+  const showDOM = useChartStore((s) => s.showDOM);
+  const setShowDOM = useChartStore((s) => s.setShowDOM);
+
+  const [rightPanelTab, setRightPanelTab] = useState<'execution' | 'dom'>('execution');
+
+  useEffect(() => {
+    if (showDOM) {
+      setShowRightSidebar(true);
+      setRightPanelTab('dom');
+    }
+  }, [showDOM, setShowRightSidebar]);
 
   const [isDraggingRight, setIsDraggingRight] = useState(false);
   const [isDraggingBottom, setIsDraggingBottom] = useState(false);
@@ -170,10 +182,10 @@ export function PlatformLayout({ children }: PlatformLayoutProps) {
           )}
         </div>
 
-        {/* ── Right Execution Panel ── */}
+        {/* ── Right Panel: Execution or DOM Ladder ── */}
         {showRightSidebar && (
           <div
-            className="shrink-0 flex relative overflow-hidden border-l border-[#1e2333]"
+            className="shrink-0 flex flex-col relative overflow-hidden border-l border-[#1e2333] bg-[#0c1018]"
             style={{ width: sidebarW }}
           >
             {/* Left drag handle */}
@@ -183,8 +195,48 @@ export function PlatformLayout({ children }: PlatformLayoutProps) {
             >
               <div className="h-12 w-0.5 rounded-full bg-[#252d40] group-hover:bg-blue-400 transition" />
             </div>
+
+            {/* Panel Mode Switcher Tabs */}
+            <div className="flex items-center justify-between px-2 py-1.5 bg-[#0f1422] border-b border-[#1b2234] shrink-0 text-xs font-mono">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    setRightPanelTab('execution');
+                    if (showDOM) setShowDOM(false);
+                  }}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer',
+                    rightPanelTab === 'execution'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-gray-400 hover:text-white'
+                  )}
+                >
+                  Order Entry
+                </button>
+                <button
+                  onClick={() => {
+                    setRightPanelTab('dom');
+                    if (!showDOM) setShowDOM(true);
+                  }}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer flex items-center gap-1',
+                    rightPanelTab === 'dom'
+                      ? 'bg-cyan-600 text-white shadow-xs'
+                      : 'text-gray-400 hover:text-white'
+                  )}
+                >
+                  <span>DOM Ladder</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                </button>
+              </div>
+            </div>
+
             <div className="flex-1 overflow-hidden pl-0.5">
-              <ExecutionPanel />
+              {rightPanelTab === 'dom' ? (
+                <DOMWidget onClose={() => setShowRightSidebar(false)} />
+              ) : (
+                <ExecutionPanel />
+              )}
             </div>
           </div>
         )}

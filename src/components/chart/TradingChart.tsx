@@ -17,6 +17,7 @@ import {
 import { DrawingCanvas } from './DrawingCanvas';
 import { ChartLegend } from './ChartLegend';
 import { OnChartTradingWidget } from './OnChartTradingWidget';
+import { FootprintCanvas } from '@/components/orderflow/FootprintCanvas';
 import { TIMEFRAMES } from '@/config/constants';
 import type { UTCTimestamp, LineData } from 'lightweight-charts';
 import type { Symbol, Timeframe, OHLCV } from '@/types/market-data';
@@ -276,6 +277,11 @@ export function TradingChart({
         {(!isMultiChart || isTileFocused) && <OnChartTradingWidget />}
         <div ref={containerRef} className="w-full h-full" />
         <DrawingCanvas
+          chartManager={chartManagerRef.current}
+          width={chartDimensions.width}
+          height={chartDimensions.height}
+        />
+        <FootprintCanvas
           chartManager={chartManagerRef.current}
           width={chartDimensions.width}
           height={chartDimensions.height}

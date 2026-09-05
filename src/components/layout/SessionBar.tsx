@@ -17,6 +17,8 @@ import {
   Minimize2,
   PanelRightClose,
   PanelRightOpen,
+  Zap,
+  BarChart2,
 } from 'lucide-react';
 import { useChartStore } from '@/store/chart-store';
 import { useReplayStore } from '@/store/replay-store';
@@ -39,6 +41,7 @@ export function SessionBar() {
   const [isIndicatorsModalOpen, setIsIndicatorsModalOpen] = useState(false);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
+  const [isOrderFlowMenuOpen, setIsOrderFlowMenuOpen] = useState(false);
   const [currentSymbolObj, setCurrentSymbolObj] = useState<Symbol | null>(null);
 
   const activeSymbol = useChartStore((s) => s.activeSymbol);
@@ -46,6 +49,13 @@ export function SessionBar() {
   const setActiveTimeframe = useChartStore((s) => s.setActiveTimeframe);
   const chartMode = useChartStore((s) => s.chartMode);
   const setChartMode = useChartStore((s) => s.setChartMode);
+
+  const showFootprint = useChartStore((s) => s.showFootprint);
+  const showVolumeProfile = useChartStore((s) => s.showVolumeProfile);
+  const showDOM = useChartStore((s) => s.showDOM);
+  const toggleFootprint = useChartStore((s) => s.toggleFootprint);
+  const toggleVolumeProfile = useChartStore((s) => s.toggleVolumeProfile);
+  const toggleDOM = useChartStore((s) => s.toggleDOM);
 
   const activeIndicators = useIndicatorStore((s) => s.activeIndicators);
   const currentSession = useSessionStore((s) => s.currentSession);
@@ -191,7 +201,87 @@ export function SessionBar() {
         <div className="w-px h-5 bg-[#252d40] shrink-0" />
 
         {/* ── ICON CONTROLS ── */}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0 relative">
+          {/* Order Flow Suite Toggle Button */}
+          <div className="relative">
+            <button
+              onClick={() => setIsOrderFlowMenuOpen(!isOrderFlowMenuOpen)}
+              title="Order Flow Suite (Footprint, Volume Profile, DOM Ladder)"
+              className={cn(
+                'flex items-center gap-1 h-7 px-2 rounded-lg border transition cursor-pointer',
+                showFootprint || showVolumeProfile || showDOM
+                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 shadow-xs shadow-amber-500/10'
+                  : 'text-gray-400 hover:text-white hover:bg-[#161c2b] border-transparent hover:border-[#252d42]'
+              )}
+            >
+              <Zap className={cn('w-3.5 h-3.5', showFootprint || showVolumeProfile || showDOM ? 'text-amber-400' : 'text-gray-400')} />
+              <span className="font-bold text-[11px] hidden sm:inline">Order Flow</span>
+              {(showFootprint || showVolumeProfile || showDOM) && (
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              )}
+            </button>
+
+            {/* Order Flow Dropdown Popover */}
+            {isOrderFlowMenuOpen && (
+              <div className="absolute top-full right-0 mt-1 w-56 bg-[#0f1422] border border-[#202d48] rounded-xl shadow-2xl p-2 z-50 text-xs font-mono space-y-1.5">
+                <div className="px-2 py-1 text-[10px] text-gray-500 uppercase tracking-wider font-bold border-b border-[#1b253c]">
+                  Order Flow Tools
+                </div>
+
+                {/* Footprint Toggle */}
+                <button
+                  onClick={() => toggleFootprint()}
+                  className={cn(
+                    'w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition cursor-pointer',
+                    showFootprint
+                      ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30'
+                      : 'text-gray-300 hover:bg-[#161f33]'
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-blue-400" />
+                    <span>Footprint (Bid/Ask)</span>
+                  </div>
+                  <span className="text-[10px] font-bold">{showFootprint ? 'ON' : 'OFF'}</span>
+                </button>
+
+                {/* Volume Profile Toggle */}
+                <button
+                  onClick={() => toggleVolumeProfile()}
+                  className={cn(
+                    'w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition cursor-pointer',
+                    showVolumeProfile
+                      ? 'bg-amber-600/20 text-amber-300 border border-amber-500/30'
+                      : 'text-gray-300 hover:bg-[#161f33]'
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    <span>Volume Profile (VP)</span>
+                  </div>
+                  <span className="text-[10px] font-bold">{showVolumeProfile ? 'ON' : 'OFF'}</span>
+                </button>
+
+                {/* DOM Ladder Toggle */}
+                <button
+                  onClick={() => toggleDOM()}
+                  className={cn(
+                    'w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition cursor-pointer',
+                    showDOM
+                      ? 'bg-cyan-600/20 text-cyan-300 border border-cyan-500/30'
+                      : 'text-gray-300 hover:bg-[#161f33]'
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                    <span>DOM Price Ladder</span>
+                  </div>
+                  <span className="text-[10px] font-bold">{showDOM ? 'ON' : 'OFF'}</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Indicators */}
           <button
             onClick={() => setIsIndicatorsModalOpen(true)}

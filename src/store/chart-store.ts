@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Timeframe } from '@/types/market-data';
 import type { DrawingTool, Drawing, ChartLayout, ChartTileConfig } from '@/types/chart';
+import { DEFAULT_ORDERFLOW_SETTINGS, type OrderFlowSettings } from '@/types/orderflow';
 
 interface ChartStore {
   activeSymbol: string;
@@ -27,6 +28,20 @@ interface ChartStore {
   clearDrawings: () => void;
   setSelectedDrawingId: (id: string | null) => void;
 
+  // Order Flow State
+  showFootprint: boolean;
+  showVolumeProfile: boolean;
+  showDOM: boolean;
+  orderFlowSettings: import('@/types/orderflow').OrderFlowSettings;
+
+  setShowFootprint: (show: boolean) => void;
+  setShowVolumeProfile: (show: boolean) => void;
+  setShowDOM: (show: boolean) => void;
+  toggleFootprint: () => void;
+  toggleVolumeProfile: () => void;
+  toggleDOM: () => void;
+  updateOrderFlowSettings: (settings: Partial<import('@/types/orderflow').OrderFlowSettings>) => void;
+
   setLayout: (layout: ChartLayout) => void;
   setActiveTileIndex: (index: number) => void;
   setTileTimeframe: (tileIndex: number, timeframe: Timeframe) => void;
@@ -40,6 +55,23 @@ export const useChartStore = create<ChartStore>((set) => ({
   drawings: [],
   selectedDrawingId: null,
   chartMode: 'tradingview',
+
+  // Order Flow State Defaults
+  showFootprint: false,
+  showVolumeProfile: false,
+  showDOM: false,
+  orderFlowSettings: DEFAULT_ORDERFLOW_SETTINGS,
+
+  setShowFootprint: (show) => set({ showFootprint: show }),
+  setShowVolumeProfile: (show) => set({ showVolumeProfile: show }),
+  setShowDOM: (show) => set({ showDOM: show }),
+  toggleFootprint: () => set((state) => ({ showFootprint: !state.showFootprint })),
+  toggleVolumeProfile: () => set((state) => ({ showVolumeProfile: !state.showVolumeProfile })),
+  toggleDOM: () => set((state) => ({ showDOM: !state.showDOM })),
+  updateOrderFlowSettings: (updates) =>
+    set((state) => ({
+      orderFlowSettings: { ...state.orderFlowSettings, ...updates },
+    })),
 
   layout: '1x1',
   activeTileIndex: 0,

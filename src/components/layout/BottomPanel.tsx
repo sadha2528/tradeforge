@@ -12,6 +12,7 @@ import { EquityCurveChart } from '@/components/analytics/EquityCurveChart';
 import { DrawdownChart } from '@/components/analytics/DrawdownChart';
 import { PerformanceBreakdowns } from '@/components/analytics/PerformanceBreakdowns';
 import { TradingCalendar } from '@/components/analytics/TradingCalendar';
+import { OrderFlowTab } from '@/components/orderflow/OrderFlowTab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatPnL, formatDuration } from '@/lib/utils/formatting';
 import { cn } from '@/lib/utils';
@@ -40,6 +41,7 @@ import {
   Play,
   CheckCircle,
   AlertCircle,
+  Zap,
 } from 'lucide-react';
 
 export function BottomPanel() {
@@ -202,6 +204,14 @@ export function BottomPanel() {
             >
               <BookOpen className="w-3.5 h-3.5" />
               <span>Journal</span>
+            </TabsTrigger>
+
+            <TabsTrigger
+              value="orderflow"
+              className="text-xs data-[state=active]:bg-[#141b2c] data-[state=active]:text-white text-gray-400 rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 px-3 h-full flex items-center space-x-1.5 cursor-pointer"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-400" />
+              <span>Order Flow</span>
             </TabsTrigger>
           </TabsList>
 
@@ -718,6 +728,11 @@ export function BottomPanel() {
               })}
             </div>
           )}
+        </TabsContent>
+
+        {/* 7. ORDER FLOW TAB */}
+        <TabsContent value="orderflow" className="flex-1 overflow-hidden p-0 m-0 h-full">
+          <OrderFlowTab />
         </TabsContent>
       </Tabs>
     </div>

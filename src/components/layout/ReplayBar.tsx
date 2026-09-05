@@ -16,6 +16,7 @@ import {
   Layers,
   Briefcase,
   ListOrdered,
+  Zap,
 } from 'lucide-react';
 import { useReplayStore } from '@/store/replay-store';
 import { useUIStore } from '@/store/ui-store';
@@ -32,6 +33,7 @@ const PANEL_TABS: { id: PanelTab; label: string; icon: React.ComponentType<{ cla
   { id: 'statistics', label: 'Analytics', icon: BarChart2 },
   { id: 'journal', label: 'Journal', icon: BookOpen },
   { id: 'economic', label: 'Economic', icon: Calendar },
+  { id: 'orderflow', label: 'Order Flow', icon: Zap },
 ];
 
 export function ReplayBar() {
