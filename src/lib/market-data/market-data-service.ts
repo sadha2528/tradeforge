@@ -32,11 +32,29 @@ class MarketDataService {
     return getSymbolById(symbolId) || DEFAULT_SYMBOLS[0];
   }
 
-  async getHistoricalBars(symbolId: string, timeframe: Timeframe, count?: number): Promise<OHLCV[]> {
+  async getHistoricalBars(
+    symbolId: string,
+    timeframe: Timeframe,
+    count?: number,
+    fromTimestamp?: number,
+    toTimestamp?: number
+  ): Promise<OHLCV[]> {
     if (this.csvProvider.hasDataset(symbolId)) {
       return this.csvProvider.getHistoricalBars(symbolId, timeframe);
     }
-    return this.mockProvider.getHistoricalBars(symbolId, timeframe, count);
+    return this.mockProvider.getHistoricalBars(symbolId, timeframe, count, fromTimestamp, toTimestamp);
+  }
+
+  validateDataAvailability(
+    symbolId: string,
+    timeframe: Timeframe,
+    fromTimestamp: number,
+    toTimestamp: number
+  ): { available: boolean; reason?: string; isSimulated: boolean; barEstimate?: number } {
+    if (this.csvProvider.hasDataset(symbolId)) {
+      return { available: true, isSimulated: false };
+    }
+    return this.mockProvider.validateDataAvailability(symbolId, timeframe, fromTimestamp, toTimestamp);
   }
 
   registerCustomDataset(symbol: Symbol, bars: OHLCV[], baseTimeframe: Timeframe = '1m'): void {
@@ -45,3 +63,4 @@ class MarketDataService {
 }
 
 export const marketDataService = new MarketDataService();
+

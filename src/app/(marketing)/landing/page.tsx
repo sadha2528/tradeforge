@@ -129,14 +129,15 @@ export default function LandingPage() {
           <a href="#propfirm" className="hover:text-white transition">Prop-Firm Mode</a>
           <a href="#pricing" className="hover:text-white transition">Pricing</a>
           <a href="#faq" className="hover:text-white transition">FAQ</a>
+          <Link href="/sessions" className="hover:text-white text-blue-400 font-bold transition">My Sessions</Link>
         </div>
 
         <div className="flex items-center space-x-3">
           <Link
-            href="/platform"
+            href="/session/new"
             className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-xs font-bold font-mono rounded-lg shadow-lg shadow-blue-500/25 transition flex items-center space-x-1.5"
           >
-            <span>Launch Workstation</span>
+            <span>Start New Session</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
@@ -163,11 +164,11 @@ export default function LandingPage() {
         {/* CTA Buttons */}
         <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3.5">
           <Link
-            href="/platform"
+            href="/session/new"
             className="w-full sm:w-auto px-8 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm font-mono rounded-xl shadow-xl shadow-blue-500/25 transition flex items-center justify-center space-x-2 cursor-pointer"
           >
             <Play className="w-4 h-4 fill-current text-white" />
-            <span>Start Free Backtest</span>
+            <span>Start New Session</span>
           </Link>
 
           <a
@@ -177,6 +178,7 @@ export default function LandingPage() {
             See How It Works
           </a>
         </div>
+
 
         {/* Key Feature Stats Bar */}
         <div className="pt-10 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs font-mono text-gray-300">
@@ -379,7 +381,7 @@ export default function LandingPage() {
                   <td className="p-3.5 text-gray-300">{f.margin}</td>
                   <td className="p-3.5 text-right">
                     <Link
-                      href="/platform"
+                      href="/session/new"
                       className="px-2.5 py-1 rounded bg-[#151d30] hover:bg-blue-600 text-gray-300 hover:text-white transition text-[10px] font-bold"
                     >
                       Replay {f.symbol} ↗
@@ -423,7 +425,7 @@ export default function LandingPage() {
 
             <div className="pt-2">
               <Link
-                href="/platform"
+                href="/session/new"
                 className="inline-flex items-center space-x-2 px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold font-mono text-xs shadow-lg shadow-purple-600/25 transition"
               >
                 <span>Launch Prop-Firm Challenge Mode</span>
@@ -431,6 +433,7 @@ export default function LandingPage() {
               </Link>
             </div>
           </div>
+
 
           {/* Prop Firm UI Showcase Card */}
           <div className="p-5 bg-[#0b101d] border border-[#1e2a44] rounded-2xl shadow-2xl font-mono text-xs space-y-4">
@@ -553,7 +556,7 @@ export default function LandingPage() {
               <li className="flex items-center space-x-2"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" /><span>LocalStorage Session Persistence</span></li>
             </ul>
 
-            <Link href="/platform" className="block w-full py-3 bg-[#131b2c] hover:bg-[#1a253e] text-white text-center font-bold font-mono text-xs rounded-xl transition">
+            <Link href="/session/new" className="block w-full py-3 bg-[#131b2c] hover:bg-[#1a253e] text-white text-center font-bold font-mono text-xs rounded-xl transition">
               Launch Free Workstation
             </Link>
           </div>
@@ -575,7 +578,7 @@ export default function LandingPage() {
               <li className="flex items-center space-x-2"><CheckCircle2 className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>CSV &amp; Cloud Snapshot Synchronization</span></li>
             </ul>
 
-            <Link href="/platform" className="block w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-center font-bold font-mono text-xs rounded-xl transition shadow-lg shadow-blue-500/25">
+            <Link href="/session/new" className="block w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-center font-bold font-mono text-xs rounded-xl transition shadow-lg shadow-blue-500/25">
               Start Pro Access
             </Link>
           </div>
@@ -629,12 +632,13 @@ export default function LandingPage() {
           </p>
           <div className="pt-3">
             <Link
-              href="/platform"
+              href="/session/new"
               className="inline-flex items-center space-x-2 px-9 py-4 bg-gradient-to-r from-blue-600 via-cyan-600 to-blue-600 hover:scale-105 text-white font-bold font-mono text-sm rounded-xl shadow-2xl shadow-blue-500/30 transition transform"
             >
               <Play className="w-4 h-4 fill-current" />
               <span>Launch Free Workstation Now</span>
             </Link>
+
           </div>
         </div>
       </section>

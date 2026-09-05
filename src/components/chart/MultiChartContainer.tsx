@@ -7,6 +7,7 @@ import { useReplayStore } from '@/store/replay-store';
 import { useChartStore } from '@/store/chart-store';
 import { useTradingStore } from '@/store/trading-store';
 import { marketDataService } from '@/lib/market-data/market-data-service';
+import { useSessionStore } from '@/store/session-store';
 import { INITIAL_VISIBLE_CANDLES } from '@/config/constants';
 import { Loader2 } from 'lucide-react';
 import type { Symbol } from '@/types/market-data';
@@ -21,6 +22,8 @@ export function MultiChartContainer() {
   const activeTimeframe = useChartStore((s) => s.activeTimeframe);
   const layout = useChartStore((s) => s.layout);
   const tiles = useChartStore((s) => s.tiles);
+
+  const currentSession = useSessionStore((s) => s.currentSession);
 
   const state = useReplayStore((s) => s.state);
   const speed = useReplayStore((s) => s.speed);
@@ -42,12 +45,26 @@ export function MultiChartContainer() {
     let isCancelled = false;
     setIsLoading(true);
 
+    const fromTs = currentSession?.startDate;
+    const toTs = currentSession?.endDate;
+
     marketDataService
-      .getHistoricalBars(activeSymbol, activeTimeframe)
+      .getHistoricalBars(activeSymbol, activeTimeframe, 2000, fromTs, toTs)
       .then((bars) => {
         if (!isCancelled && bars.length > 0) {
-          const preload = Math.min(INITIAL_VISIBLE_CANDLES, Math.floor(bars.length * 0.4));
+          let preload = Math.min(INITIAL_VISIBLE_CANDLES, Math.floor(bars.length * 0.4));
+          
+          if (currentSession?.replayStartTime) {
+            const targetIdx = bars.findIndex((b) => b.timestamp >= currentSession.replayStartTime!);
+            if (targetIdx > 0) {
+              preload = targetIdx;
+            }
+          }
+
           loadCandles(bars, preload);
+          if (currentSession?.currentIndex && currentSession.currentIndex > 0) {
+            useReplayStore.getState().jumpTo(currentSession.currentIndex);
+          }
           setIsLoading(false);
         }
       })
@@ -59,7 +76,8 @@ export function MultiChartContainer() {
     return () => {
       isCancelled = true;
     };
-  }, [activeSymbol, activeTimeframe, loadCandles]);
+  }, [activeSymbol, activeTimeframe, currentSession?.startDate, currentSession?.endDate, currentSession?.replayStartTime, loadCandles]);
+
 
   // Evaluate trading engine rules on candle changes
   useEffect(() => {

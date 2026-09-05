@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   TrendingUp,
   ChevronDown,
@@ -27,6 +28,13 @@ import {
   PanelRightOpen,
   PanelBottomClose,
   PanelBottomOpen,
+  Edit,
+  Plus,
+  Play,
+  LogOut,
+  Info,
+  Save,
+  CheckCircle2,
 } from 'lucide-react';
 import { useChartStore } from '@/store/chart-store';
 import { useReplayStore } from '@/store/replay-store';
@@ -39,6 +47,8 @@ import { syncService } from '@/lib/sync/sync-service';
 import { ReplayControls } from '@/features/replay/ReplayControls';
 import { TIMEFRAMES } from '@/config/constants';
 import { marketDataService } from '@/lib/market-data/market-data-service';
+import { formatCurrency } from '@/lib/utils/formatting';
+
 import { SymbolSelectorModal } from '@/components/modals/SymbolSelectorModal';
 import { ImportDataModal } from '@/components/modals/ImportDataModal';
 import { SessionManagerModal } from '@/components/modals/SessionManagerModal';
@@ -49,11 +59,16 @@ import { cn } from '@/lib/utils';
 import type { Timeframe, Symbol } from '@/types/market-data';
 
 export function TopBar() {
+  const router = useRouter();
   const [isSymbolModalOpen, setIsSymbolModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
   const [isIndicatorsModalOpen, setIsIndicatorsModalOpen] = useState(false);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
+  const [isSessionDropdownOpen, setIsSessionDropdownOpen] = useState(false);
+  const [isRestartModalOpen, setIsRestartModalOpen] = useState(false);
+  const [isSessionDetailsModalOpen, setIsSessionDetailsModalOpen] = useState(false);
+
   const [currentSymbolObj, setCurrentSymbolObj] = useState<Symbol | null>(null);
   const [cloudStatus, setCloudStatus] = useState<'idle' | 'saving' | 'synced'>('idle');
   const [isMuted, setIsMuted] = useState(false);
@@ -69,9 +84,11 @@ export function TopBar() {
 
   const currentSession = useSessionStore((s) => s.currentSession);
   const saveCurrentSessionSnapshot = useSessionStore((s) => s.saveCurrentSessionSnapshot);
+  const restartSession = useSessionStore((s) => s.restartSession);
   const activeIndicators = useIndicatorStore((s) => s.activeIndicators);
 
   const closedTrades = useTradingStore((s) => s.closedTrades);
+  const resetAccount = useTradingStore((s) => s.resetAccount);
 
   const allCandles = useReplayStore((s) => s.allCandles);
   const currentIndex = useReplayStore((s) => s.currentIndex);
@@ -111,6 +128,15 @@ export function TopBar() {
     setIsMuted(next);
   };
 
+  const handleConfirmRestart = () => {
+    if (currentSession) {
+      restartSession(currentSession.id);
+      resetAccount();
+      useReplayStore.getState().reset();
+    }
+    setIsRestartModalOpen(false);
+  };
+
   return (
     <>
       <header className="h-full w-full bg-[#0a0e17] border-b border-[#182338] text-gray-300 text-xs px-3 flex items-center justify-between font-sans select-none overflow-x-auto">
@@ -128,17 +154,130 @@ export function TopBar() {
             </span>
           </div>
 
-          {/* Workspace / Backtest Session Pill */}
-          <button
-            onClick={() => setIsSessionModalOpen(true)}
-            className="flex items-center space-x-1.5 px-2 py-1 bg-[#101726] hover:bg-[#182338] border border-[#1b253c] hover:border-blue-500/40 rounded-lg text-gray-300 hover:text-white transition cursor-pointer"
-            title="Manage Backtest Sessions"
-          >
-            <FolderKanban className="w-3.5 h-3.5 text-blue-400" />
-            <span className="font-medium font-mono text-[11px] max-w-[130px] truncate hidden md:inline">
-              {currentSession ? currentSession.name : 'Default Session'}
-            </span>
-          </button>
+          {/* Workspace / Backtest Session Pill with Interactive Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setIsSessionDropdownOpen(!isSessionDropdownOpen)}
+              className="flex items-center space-x-1.5 px-2.5 py-1 bg-[#101726] hover:bg-[#182338] border border-[#1b253c] hover:border-blue-500/50 rounded-lg text-gray-300 hover:text-white transition cursor-pointer"
+              title="Session Menu"
+            >
+              <FolderKanban className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+              <span className="font-medium font-mono text-[11px] max-w-[140px] truncate hidden md:inline">
+                {currentSession ? currentSession.name : 'Default Session'}
+              </span>
+              {currentSession?.mode && (
+                <span className="text-[9px] font-mono font-bold uppercase px-1 py-0.2 rounded bg-blue-500/20 text-blue-300 hidden lg:inline">
+                  {currentSession.mode}
+                </span>
+              )}
+              <ChevronDown className="w-3 h-3 text-gray-400" />
+            </button>
+
+            {/* Session Dropdown Menu */}
+            {isSessionDropdownOpen && (
+              <div
+                className="absolute left-0 top-full mt-1.5 w-64 bg-[#0e1422] border border-[#212f4a] rounded-xl shadow-2xl py-1.5 z-50 text-xs font-sans animate-in fade-in-50 zoom-in-95"
+                onMouseLeave={() => setIsSessionDropdownOpen(false)}
+              >
+                {currentSession && (
+                  <div className="px-3 py-2 border-b border-[#1a253a]">
+                    <div className="font-bold text-white text-xs truncate">{currentSession.name}</div>
+                    <div className="flex items-center space-x-2 text-[10px] font-mono text-gray-400 mt-0.5">
+                      <span className="text-blue-400 font-bold">{currentSession.symbol}</span>
+                      <span>•</span>
+                      <span>{currentSession.timeframe}</span>
+                      <span>•</span>
+                      <span className="text-emerald-400">{formatCurrency(currentSession.startingBalance)}</span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="py-1">
+                  <button
+                    onClick={() => {
+                      setIsSessionDropdownOpen(false);
+                      setIsSessionDetailsModalOpen(true);
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#162136] hover:text-white flex items-center space-x-2 transition cursor-pointer"
+                  >
+                    <Info className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Session Details</span>
+                  </button>
+
+                  {currentSession && (
+                    <button
+                      onClick={() => {
+                        setIsSessionDropdownOpen(false);
+                        router.push(`/session/new?edit=${currentSession.id}`);
+                      }}
+                      className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#162136] hover:text-white flex items-center space-x-2 transition cursor-pointer"
+                    >
+                      <Edit className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Edit Session Settings</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setIsSessionDropdownOpen(false);
+                      setIsRestartModalOpen(true);
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-amber-300 hover:bg-amber-950/30 hover:text-amber-200 flex items-center space-x-2 transition cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Restart Session</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsSessionDropdownOpen(false);
+                      handleQuickCloudSync();
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#162136] hover:text-white flex items-center space-x-2 transition cursor-pointer"
+                  >
+                    <Save className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Save Session Snapshot</span>
+                  </button>
+                </div>
+
+                <div className="border-t border-[#1a253a] py-1">
+                  <button
+                    onClick={() => {
+                      setIsSessionDropdownOpen(false);
+                      router.push('/session/new');
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#162136] hover:text-white flex items-center space-x-2 transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-blue-400" />
+                    <span>+ Start New Session</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsSessionDropdownOpen(false);
+                      router.push('/sessions');
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#162136] hover:text-white flex items-center space-x-2 transition cursor-pointer"
+                  >
+                    <FolderKanban className="w-3.5 h-3.5 text-gray-400" />
+                    <span>All Sessions Dashboard</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsSessionDropdownOpen(false);
+                      router.push('/sessions');
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-gray-400 hover:bg-red-950/30 hover:text-red-300 flex items-center space-x-2 transition cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-red-400" />
+                    <span>Exit Session</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
 
           {/* Symbol Selector Pill */}
           <button
@@ -435,6 +574,132 @@ export function TopBar() {
         isOpen={isShortcutsModalOpen}
         onClose={() => setIsShortcutsModalOpen(false)}
       />
+
+      {/* Restart Session Confirmation Modal */}
+      {isRestartModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs">
+          <div className="bg-[#0e1422] border border-[#263552] rounded-xl p-5 max-w-sm w-full shadow-2xl space-y-4">
+            <div className="flex items-center space-x-2 text-amber-400 font-bold text-sm">
+              <RotateCcw className="w-4 h-4" />
+              <span>Restart Backtest Session?</span>
+            </div>
+            <p className="text-xs text-gray-300 leading-relaxed">
+              All simulated trades, positions, and replay candle progress for this session will be reset back to the starting timestamp (
+              {currentSession?.replayStartTime
+                ? new Date(currentSession.replayStartTime).toUTCString().slice(0, 22)
+                : 'Session Start'}
+              ).
+            </p>
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#1a253a]">
+              <button
+                onClick={() => setIsRestartModalOpen(false)}
+                className="px-3 py-1.5 rounded-lg bg-[#141d2e] hover:bg-[#1a253a] text-gray-300 text-xs font-medium cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmRestart}
+                className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-md shadow-amber-600/30 cursor-pointer"
+              >
+                Confirm Restart
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Session Details Modal */}
+      {isSessionDetailsModalOpen && currentSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-[#0e1422] border border-[#263552] rounded-xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95">
+            <div className="p-4 border-b border-[#1a253a] flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-white font-bold text-sm">
+                <FolderKanban className="w-4 h-4 text-blue-400" />
+                <span>Session Specification</span>
+              </div>
+              <button
+                onClick={() => setIsSessionDetailsModalOpen(false)}
+                className="text-gray-400 hover:text-white text-xs cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <h4 className="font-bold text-white text-sm">{currentSession.name}</h4>
+                {currentSession.strategyName && (
+                  <div className="text-[11px] font-mono text-blue-400 mt-0.5">{currentSession.strategyName}</div>
+                )}
+                {currentSession.description && (
+                  <p className="text-gray-400 text-xs mt-1 leading-relaxed">{currentSession.description}</p>
+                )}
+              </div>
+
+              <div className="bg-[#090d17] border border-[#1b263b] rounded-lg p-3 grid grid-cols-2 gap-2.5 font-mono">
+                <div>
+                  <span className="text-gray-500 text-[10px] uppercase block">Asset</span>
+                  <span className="text-white font-bold">
+                    {currentSession.symbol} ({currentSession.market || 'CME'})
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-[10px] uppercase block">Timeframe</span>
+                  <span className="text-purple-400 font-bold">{currentSession.timeframe}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-[10px] uppercase block">Capital</span>
+                  <span className="text-emerald-400 font-bold">{formatCurrency(currentSession.startingBalance)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-[10px] uppercase block">Session Mode</span>
+                  <span className="text-cyan-400 font-bold uppercase text-[11px]">{currentSession.mode || 'manual'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-[10px] uppercase block">Risk Model</span>
+                  <span className="text-white">
+                    {currentSession.riskMode === 'risk-pct'
+                      ? `${currentSession.riskValue ?? 1}% Equity`
+                      : currentSession.riskMode === 'fixed-dollar'
+                      ? `$${currentSession.riskValue ?? 500} Fixed`
+                      : `${currentSession.riskValue ?? 1} Contract`}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-[10px] uppercase block">Execution / SL-TP</span>
+                  <span className="text-white capitalize">{currentSession.sameCandlePolicy || 'Conservative'}</span>
+                </div>
+                <div className="col-span-2 pt-2 border-t border-[#131d2e]">
+                  <span className="text-gray-500 text-[10px] uppercase block">Date Period</span>
+                  <span className="text-gray-200">
+                    {new Date(currentSession.startDate).toISOString().slice(0, 10)} →{' '}
+                    {new Date(currentSession.endDate).toISOString().slice(0, 10)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-[#090d17] border-t border-[#1a253a] flex items-center justify-between">
+              <button
+                onClick={() => {
+                  setIsSessionDetailsModalOpen(false);
+                  router.push(`/session/new?edit=${currentSession.id}`);
+                }}
+                className="px-3 py-1.5 rounded-lg border border-[#202e48] hover:bg-[#141d2e] text-blue-400 text-xs font-semibold cursor-pointer"
+              >
+                Edit Configuration
+              </button>
+              <button
+                onClick={() => setIsSessionDetailsModalOpen(false)}
+                className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
+

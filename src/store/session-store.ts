@@ -1,20 +1,31 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { BacktestSession } from '@/types/common';
+import type { BacktestSession, SessionMode, RiskMode } from '@/types/common';
 import type { Timeframe } from '@/types/market-data';
+import type { ExecutionAssumption } from '@/types/trading';
 
-interface CreateSessionInput {
+export interface CreateSessionInput {
   name: string;
   strategyName?: string | null;
   symbol: string;
+  market?: string;
   timeframe: Timeframe;
   startingBalance: number;
-  riskPerTrade: number;
+  riskPerTrade?: number;
+  mode?: SessionMode;
+  riskMode?: RiskMode;
+  riskValue?: number;
+  commission?: number;
+  slippage?: number;
+  sameCandlePolicy?: ExecutionAssumption;
+  includeETH?: boolean;
+  timezone?: string;
   startDate: number;
   endDate: number;
-  currentTimestamp: number;
-  currentIndex: number;
-  preloadCount: number;
+  replayStartTime?: number;
+  currentTimestamp?: number;
+  currentIndex?: number;
+  preloadCount?: number;
   description?: string;
 }
 
@@ -26,6 +37,7 @@ interface SessionStore {
   updateSession: (id: string, updates: Partial<BacktestSession>) => void;
   deleteSession: (id: string) => void;
   duplicateSession: (id: string) => BacktestSession | null;
+  restartSession: (id: string) => BacktestSession | null;
   setCurrentSession: (session: BacktestSession | null) => void;
   saveCurrentSessionSnapshot: (currentCandleTimestamp: number, currentIndex: number) => void;
 }
@@ -40,9 +52,19 @@ export const useSessionStore = create<SessionStore>()(
           name: 'ES London & NY Open Replay',
           strategyName: 'Opening Range Breakout (ORB)',
           symbol: 'ES',
+          market: 'CME',
           timeframe: '5m',
           startingBalance: 100000,
           riskPerTrade: 1,
+          mode: 'manual',
+          riskMode: 'contracts',
+          riskValue: 1,
+          commission: 2.50,
+          slippage: 0,
+          sameCandlePolicy: 'conservative',
+          includeETH: true,
+          timezone: 'America/New_York',
+          replayStartTime: Date.UTC(2024, 8, 16, 13, 30, 0),
           currentTimestamp: Date.UTC(2024, 8, 16, 13, 30, 0),
           currentIndex: 40,
           preloadCount: 60,
@@ -57,23 +79,35 @@ export const useSessionStore = create<SessionStore>()(
       ],
 
       createSession: (input) => {
+        const replayStart = input.replayStartTime ?? input.startDate;
         const newSession: BacktestSession = {
           id: crypto.randomUUID(),
           name: input.name,
           strategyName: input.strategyName || null,
           symbol: input.symbol,
+          market: input.market || 'CME',
           timeframe: input.timeframe,
           startingBalance: input.startingBalance,
-          riskPerTrade: input.riskPerTrade,
+          riskPerTrade: input.riskPerTrade ?? (input.riskMode === 'risk-pct' ? (input.riskValue ?? 1) : 1),
+          mode: input.mode || 'manual',
+          riskMode: input.riskMode || 'contracts',
+          riskValue: input.riskValue ?? 1,
+          commission: input.commission ?? 2.50,
+          slippage: input.slippage ?? 0,
+          sameCandlePolicy: input.sameCandlePolicy || 'conservative',
+          includeETH: input.includeETH ?? true,
+          timezone: input.timezone || 'America/New_York',
           startDate: input.startDate,
           endDate: input.endDate,
-          currentTimestamp: input.currentTimestamp,
-          currentIndex: input.currentIndex,
-          preloadCount: input.preloadCount,
+          replayStartTime: replayStart,
+          currentTimestamp: input.currentTimestamp ?? replayStart,
+          currentIndex: input.currentIndex ?? 0,
+          preloadCount: input.preloadCount ?? 50,
           description: input.description,
           createdAt: Date.now(),
           updatedAt: Date.now(),
           tradesCount: 0,
+          winRate: 0,
         };
 
         set((state) => ({
@@ -119,10 +153,30 @@ export const useSessionStore = create<SessionStore>()(
         return duplicated;
       },
 
+      restartSession: (id) => {
+        const { sessions, updateSession } = get();
+        const target = sessions.find((s) => s.id === id);
+        if (!target) return null;
+
+        const resetTimestamp = target.replayStartTime ?? target.startDate;
+        const updates: Partial<BacktestSession> = {
+          currentTimestamp: resetTimestamp,
+          currentIndex: 0,
+          tradesCount: 0,
+          winRate: 0,
+          updatedAt: Date.now(),
+        };
+
+        updateSession(id, updates);
+        const updated = { ...target, ...updates };
+        set({ currentSession: updated });
+        return updated;
+      },
+
       setCurrentSession: (session) => set({ currentSession: session }),
 
       saveCurrentSessionSnapshot: (currentCandleTimestamp, currentIndex) => {
-        const { currentSession, updateSession, createSession } = get();
+        const { currentSession, updateSession } = get();
         if (currentSession) {
           updateSession(currentSession.id, {
             currentTimestamp: currentCandleTimestamp,
@@ -137,3 +191,4 @@ export const useSessionStore = create<SessionStore>()(
     }
   )
 );
+

@@ -47,13 +47,22 @@ export class MockMarketDataProvider implements MarketDataProvider {
     return DEFAULT_SYMBOLS;
   }
 
-  async getHistoricalBars(symbolId: string, timeframe: Timeframe, count: number = 1000): Promise<OHLCV[]> {
+  async getHistoricalBars(
+    symbolId: string,
+    timeframe: Timeframe,
+    count: number = 1000,
+    fromTimestamp?: number,
+    toTimestamp?: number
+  ): Promise<OHLCV[]> {
     const symbol = getSymbolById(symbolId) || DEFAULT_SYMBOLS[0];
-    const cacheKey = `${symbol.id}_1m`;
+    const cacheKey = `${symbol.id}_1m_${fromTimestamp || 'default'}`;
 
     let base1mBars = this.cache.get(cacheKey);
     if (!base1mBars) {
-      base1mBars = this.generate1mBars(symbol, 2000); // generate 2000 1-minute base bars
+      const barCount = fromTimestamp && toTimestamp 
+        ? Math.max(100, Math.min(10000, Math.ceil((toTimestamp - fromTimestamp) / 60000)))
+        : Math.max(2000, count * 2);
+      base1mBars = this.generate1mBars(symbol, barCount, fromTimestamp);
       this.cache.set(cacheKey, base1mBars);
     }
 
@@ -65,6 +74,27 @@ export class MockMarketDataProvider implements MarketDataProvider {
     return resampled.slice(-count);
   }
 
+  validateDataAvailability(
+    symbolId: string,
+    timeframe: Timeframe,
+    fromTimestamp: number,
+    toTimestamp: number
+  ): { available: boolean; reason?: string; isSimulated: boolean; barEstimate?: number } {
+    if (!fromTimestamp || !toTimestamp) {
+      return { available: false, reason: 'Valid date range required', isSimulated: false };
+    }
+    if (fromTimestamp >= toTimestamp) {
+      return { available: false, reason: 'Start date must precede end date', isSimulated: false };
+    }
+    const validTimeframes: Timeframe[] = ['1m', '5m', '15m', '30m', '1h', '4h', '1D'];
+    if (!validTimeframes.includes(timeframe)) {
+      return { available: false, reason: `Unsupported timeframe: ${timeframe}`, isSimulated: false };
+    }
+    const diffMs = toTimestamp - fromTimestamp;
+    const minutes = Math.floor(diffMs / (60 * 1000));
+    return { available: true, isSimulated: true, barEstimate: minutes };
+  }
+
   async getLatestBar(symbolId: string, timeframe: Timeframe): Promise<OHLCV | null> {
     const bars = await this.getHistoricalBars(symbolId, timeframe, 1);
     return bars.length > 0 ? bars[bars.length - 1] : null;
@@ -74,7 +104,7 @@ export class MockMarketDataProvider implements MarketDataProvider {
     return ['1m', '5m', '15m', '30m', '1h', '4h', '1D'];
   }
 
-  private generate1mBars(symbol: Symbol, count: number): OHLCV[] {
+  private generate1mBars(symbol: Symbol, count: number, startTime?: number): OHLCV[] {
     const cfg = SYMBOL_CONFIG[symbol.id] || {
       startPrice: 100,
       baseVol: 0.5,
@@ -85,8 +115,8 @@ export class MockMarketDataProvider implements MarketDataProvider {
     const prng = mulberry32(cfg.seed);
     const bars: OHLCV[] = [];
 
-    // Start 3 days ago in UTC
-    let currentTs = Date.UTC(2024, 8, 16, 0, 0, 0);
+    // Start at provided startTime or fallback to 3 days ago in UTC
+    let currentTs = startTime ?? Date.UTC(2024, 8, 16, 0, 0, 0);
     let currentPrice = cfg.startPrice;
     let trend = 0;
 
