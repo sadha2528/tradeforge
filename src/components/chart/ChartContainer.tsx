@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { TradingChart } from './TradingChart';
-import { TradingViewAdvancedWidget } from './TradingViewAdvancedWidget';
 import { ReplayEngine } from '@/lib/backtesting/replay-engine';
 import { useReplayStore } from '@/store/replay-store';
 import { useChartStore } from '@/store/chart-store';
@@ -19,7 +18,8 @@ export function ChartContainer() {
 
   const activeSymbol = useChartStore((s) => s.activeSymbol);
   const activeTimeframe = useChartStore((s) => s.activeTimeframe);
-  const chartMode = useChartStore((s) => s.chartMode);
+  const layout = useChartStore((s) => s.layout);
+  const tiles = useChartStore((s) => s.tiles);
 
   const state = useReplayStore((s) => s.state);
   const speed = useReplayStore((s) => s.speed);
@@ -94,9 +94,9 @@ export function ChartContainer() {
   }, [speed]);
 
   return (
-    <div className="relative w-full h-full bg-[#131722]">
-      {isLoading && chartMode === 'replay' && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#070a12]/80 backdrop-blur-xs">
+    <div className="relative w-full h-full bg-[#131722] overflow-hidden">
+      {isLoading && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#070a12]/80 backdrop-blur-xs">
           <div className="flex items-center space-x-2 text-blue-400 font-mono text-xs">
             <Loader2 className="w-4 h-4 animate-spin" />
             <span>Loading {activeSymbol} ({activeTimeframe})...</span>
@@ -104,10 +104,29 @@ export function ChartContainer() {
         </div>
       )}
 
-      {chartMode === 'tradingview' ? (
-        <TradingViewAdvancedWidget symbol={activeSymbol} timeframe={activeTimeframe} />
-      ) : (
-        <TradingChart />
+      {layout === '1x1' && <TradingChart />}
+
+      {layout === '2x1' && (
+        <div className="grid grid-cols-2 h-full w-full gap-1 bg-[#0b0e14]">
+          <TradingChart tileIndex={0} customSymbol={tiles[0]?.symbol} customTimeframe={tiles[0]?.timeframe} isMultiChart />
+          <TradingChart tileIndex={1} customSymbol={tiles[1]?.symbol} customTimeframe={tiles[1]?.timeframe} isMultiChart />
+        </div>
+      )}
+
+      {layout === '1x2' && (
+        <div className="grid grid-rows-2 h-full w-full gap-1 bg-[#0b0e14]">
+          <TradingChart tileIndex={0} customSymbol={tiles[0]?.symbol} customTimeframe={tiles[0]?.timeframe} isMultiChart />
+          <TradingChart tileIndex={1} customSymbol={tiles[1]?.symbol} customTimeframe={tiles[1]?.timeframe} isMultiChart />
+        </div>
+      )}
+
+      {layout === '2x2' && (
+        <div className="grid grid-cols-2 grid-rows-2 h-full w-full gap-1 bg-[#0b0e14]">
+          <TradingChart tileIndex={0} customSymbol={tiles[0]?.symbol} customTimeframe={tiles[0]?.timeframe} isMultiChart />
+          <TradingChart tileIndex={1} customSymbol={tiles[1]?.symbol} customTimeframe={tiles[1]?.timeframe} isMultiChart />
+          <TradingChart tileIndex={2} customSymbol={tiles[2]?.symbol} customTimeframe={tiles[2]?.timeframe} isMultiChart />
+          <TradingChart tileIndex={3} customSymbol={tiles[3]?.symbol} customTimeframe={tiles[3]?.timeframe} isMultiChart />
+        </div>
       )}
     </div>
   );

@@ -54,7 +54,7 @@ export const useChartStore = create<ChartStore>((set) => ({
   activeTool: null,
   drawings: [],
   selectedDrawingId: null,
-  chartMode: 'tradingview',
+  chartMode: 'replay',
 
   // Order Flow State Defaults
   showFootprint: false,

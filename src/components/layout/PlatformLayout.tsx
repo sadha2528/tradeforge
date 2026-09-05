@@ -115,7 +115,7 @@ export function PlatformLayout({ children }: PlatformLayoutProps) {
         {/* Chart fullscreen */}
         <div className="flex-1 relative overflow-hidden bg-[#131722]">
           {children}
-          {chartMode === 'replay' && <FloatingToolbar />}
+          <FloatingToolbar />
           <button
             onClick={() => setIsFullscreen(false)}
             className="absolute top-3 right-4 z-50 bg-[#0f1421]/90 hover:bg-[#161c2b] border border-[#1e2535] text-gray-300 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-mono flex items-center gap-1.5 shadow-xl backdrop-blur-sm transition cursor-pointer"
@@ -157,8 +157,8 @@ export function PlatformLayout({ children }: PlatformLayoutProps) {
           >
             {children}
 
-            {/* Floating drawing toolbar — only in replay mode */}
-            {chartMode === 'replay' && <FloatingToolbar />}
+            {/* Floating drawing toolbar */}
+            <FloatingToolbar />
 
             {/* Bottom drag handle */}
             {showBottomPanel && (

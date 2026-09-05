@@ -19,6 +19,10 @@ import {
   PanelRightOpen,
   Zap,
   BarChart2,
+  Square,
+  Columns2,
+  Rows2,
+  Grid2X2,
 } from 'lucide-react';
 import { useChartStore } from '@/store/chart-store';
 import { useReplayStore } from '@/store/replay-store';
@@ -47,8 +51,8 @@ export function SessionBar() {
   const activeSymbol = useChartStore((s) => s.activeSymbol);
   const activeTimeframe = useChartStore((s) => s.activeTimeframe);
   const setActiveTimeframe = useChartStore((s) => s.setActiveTimeframe);
-  const chartMode = useChartStore((s) => s.chartMode);
-  const setChartMode = useChartStore((s) => s.setChartMode);
+  const layout = useChartStore((s) => s.layout);
+  const setLayout = useChartStore((s) => s.setLayout);
 
   const showFootprint = useChartStore((s) => s.showFootprint);
   const showVolumeProfile = useChartStore((s) => s.showVolumeProfile);
@@ -152,28 +156,55 @@ export function SessionBar() {
           <span>{sessionDate}</span>
         </div>
 
-        {/* ── MODE TOGGLE: Replay vs TradingView ── */}
-        <div className="flex items-center gap-0.5 bg-[#0c1018] p-0.5 rounded-lg border border-[#1e2535] shrink-0">
-          <button
-            onClick={() => setChartMode('replay')}
-            className={cn(
-              'px-2 py-1 rounded-md text-[11px] font-mono font-bold transition cursor-pointer',
-              chartMode === 'replay' ? 'bg-amber-600 text-white' : 'text-gray-400 hover:text-gray-200'
-            )}
-            title="Replay Engine — tick-accurate historical backtesting"
-          >
-            Replay
-          </button>
-          <button
-            onClick={() => setChartMode('tradingview')}
-            className={cn(
-              'px-2 py-1 rounded-md text-[11px] font-mono font-bold transition cursor-pointer',
-              chartMode === 'tradingview' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200'
-            )}
-            title="TradingView Advanced Studio — live charts & Pine Script indicators"
-          >
-            Live Charts
-          </button>
+        {/* ── TRADINGVIEW LIGHTWEIGHT CHARTS BADGE & MULTI-CHART GRID ── */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 h-7 px-2 bg-[#0c1018] border border-[#1e2535] rounded-lg text-[10px] font-mono font-bold text-gray-300">
+            <span className="text-blue-400 font-black">TV</span>
+            <span className="text-gray-400 hidden lg:inline">Lightweight Charts</span>
+          </div>
+
+          <div className="flex items-center gap-0.5 bg-[#0c1018] p-0.5 rounded-lg border border-[#1e2535]">
+            <button
+              onClick={() => setLayout('1x1')}
+              title="Single Chart (1x1)"
+              className={cn(
+                'p-1 rounded cursor-pointer transition',
+                layout === '1x1' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+              )}
+            >
+              <Square className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setLayout('2x1')}
+              title="Dual Vertical (2x1)"
+              className={cn(
+                'p-1 rounded cursor-pointer transition',
+                layout === '2x1' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+              )}
+            >
+              <Columns2 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setLayout('1x2')}
+              title="Dual Horizontal (1x2)"
+              className={cn(
+                'p-1 rounded cursor-pointer transition',
+                layout === '1x2' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+              )}
+            >
+              <Rows2 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setLayout('2x2')}
+              title="Quad Grid (2x2)"
+              className={cn(
+                'p-1 rounded cursor-pointer transition',
+                layout === '2x2' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+              )}
+            >
+              <Grid2X2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
         {/* ── SPACER ── */}
