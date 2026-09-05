@@ -1,6 +1,14 @@
 import { create } from 'zustand';
 import type { Timeframe } from '@/types/market-data';
-import type { DrawingTool, Drawing, ChartLayout, ChartTileConfig } from '@/types/chart';
+import type {
+  DrawingTool,
+  Drawing,
+  ChartLayout,
+  ChartTileConfig,
+  ChartStyle,
+  PriceScaleModeConfig,
+  MagnetMode,
+} from '@/types/chart';
 import { DEFAULT_ORDERFLOW_SETTINGS, type OrderFlowSettings } from '@/types/orderflow';
 
 interface ChartStore {
@@ -42,6 +50,27 @@ interface ChartStore {
   toggleDOM: () => void;
   updateOrderFlowSettings: (settings: Partial<import('@/types/orderflow').OrderFlowSettings>) => void;
 
+  // TradingView Style & Price Scale State
+  chartStyle: ChartStyle;
+  priceScaleMode: PriceScaleModeConfig;
+  isCountdownVisible: boolean;
+  magnetMode: MagnetMode;
+  compareSymbol: string | null;
+  areDrawingsLocked: boolean;
+  areDrawingsHidden: boolean;
+
+  setChartStyle: (style: ChartStyle) => void;
+  setPriceScaleMode: (mode: Partial<PriceScaleModeConfig>) => void;
+  toggleAutoScale: () => void;
+  toggleLogScale: () => void;
+  togglePercentageScale: () => void;
+  toggleInvertScale: () => void;
+  toggleCountdown: () => void;
+  setMagnetMode: (mode: MagnetMode) => void;
+  setCompareSymbol: (symbol: string | null) => void;
+  toggleLockDrawings: () => void;
+  toggleHideDrawings: () => void;
+
   setLayout: (layout: ChartLayout) => void;
   setActiveTileIndex: (index: number) => void;
   setTileTimeframe: (tileIndex: number, timeframe: Timeframe) => void;
@@ -61,6 +90,55 @@ export const useChartStore = create<ChartStore>((set) => ({
   showVolumeProfile: false,
   showDOM: false,
   orderFlowSettings: DEFAULT_ORDERFLOW_SETTINGS,
+
+  // TradingView Style & Price Scale State Defaults
+  chartStyle: 'candlestick',
+  priceScaleMode: {
+    autoScale: true,
+    logScale: false,
+    percentageScale: false,
+    inverted: false,
+  },
+  isCountdownVisible: true,
+  magnetMode: 'off',
+  compareSymbol: null,
+  areDrawingsLocked: false,
+  areDrawingsHidden: false,
+
+  setChartStyle: (style) => set({ chartStyle: style }),
+  setPriceScaleMode: (mode) =>
+    set((state) => ({
+      priceScaleMode: { ...state.priceScaleMode, ...mode },
+    })),
+  toggleAutoScale: () =>
+    set((state) => ({
+      priceScaleMode: { ...state.priceScaleMode, autoScale: !state.priceScaleMode.autoScale },
+    })),
+  toggleLogScale: () =>
+    set((state) => ({
+      priceScaleMode: {
+        ...state.priceScaleMode,
+        logScale: !state.priceScaleMode.logScale,
+        percentageScale: false,
+      },
+    })),
+  togglePercentageScale: () =>
+    set((state) => ({
+      priceScaleMode: {
+        ...state.priceScaleMode,
+        percentageScale: !state.priceScaleMode.percentageScale,
+        logScale: false,
+      },
+    })),
+  toggleInvertScale: () =>
+    set((state) => ({
+      priceScaleMode: { ...state.priceScaleMode, inverted: !state.priceScaleMode.inverted },
+    })),
+  toggleCountdown: () => set((state) => ({ isCountdownVisible: !state.isCountdownVisible })),
+  setMagnetMode: (mode) => set({ magnetMode: mode }),
+  setCompareSymbol: (symbol) => set({ compareSymbol: symbol }),
+  toggleLockDrawings: () => set((state) => ({ areDrawingsLocked: !state.areDrawingsLocked })),
+  toggleHideDrawings: () => set((state) => ({ areDrawingsHidden: !state.areDrawingsHidden })),
 
   setShowFootprint: (show) => set({ showFootprint: show }),
   setShowVolumeProfile: (show) => set({ showVolumeProfile: show }),

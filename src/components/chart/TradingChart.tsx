@@ -17,7 +17,10 @@ import {
 import { DrawingCanvas } from './DrawingCanvas';
 import { ChartLegend } from './ChartLegend';
 import { OnChartTradingWidget } from './OnChartTradingWidget';
+import { PriceScaleControls } from './PriceScaleControls';
+import { ChartContextMenu } from './ChartContextMenu';
 import { FootprintCanvas } from '@/components/orderflow/FootprintCanvas';
+import { calculateHeikinAshi } from '@/lib/chart/heikin-ashi';
 import { TIMEFRAMES } from '@/config/constants';
 import type { UTCTimestamp, LineData } from 'lightweight-charts';
 import type { Symbol, Timeframe, OHLCV } from '@/types/market-data';
@@ -43,9 +46,13 @@ export function TradingChart({
   const [chartDimensions, setChartDimensions] = useState({ width: 800, height: 600 });
   const [symbolObj, setSymbolObj] = useState<Symbol | null>(null);
   const [tileBars, setTileBars] = useState<OHLCV[]>([]);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; price: number } | null>(null);
 
   const activeSymbolStore = useChartStore((s) => s.activeSymbol);
   const activeTimeframeStore = useChartStore((s) => s.activeTimeframe);
+  const chartStyle = useChartStore((s) => s.chartStyle);
+  const priceScaleMode = useChartStore((s) => s.priceScaleMode);
+  const compareSymbol = useChartStore((s) => s.compareSymbol);
   const activeTileIndex = useChartStore((s) => s.activeTileIndex);
   const setActiveTileIndex = useChartStore((s) => s.setActiveTileIndex);
   const setTileTimeframe = useChartStore((s) => s.setTileTimeframe);
@@ -106,7 +113,10 @@ export function TradingChart({
     const visibleTileBars = tileBars.filter((b) => b.timestamp <= currentReplayTs);
     if (visibleTileBars.length === 0) return;
 
-    const chartData = visibleTileBars.map((candle) => ({
+    // Apply Heikin-Ashi smoothing if selected
+    const barsToRender = chartStyle === 'heikin-ashi' ? calculateHeikinAshi(visibleTileBars) : visibleTileBars;
+
+    const chartData = barsToRender.map((candle) => ({
       time: (candle.timestamp / 1000) as UTCTimestamp,
       open: candle.open,
       high: candle.high,
@@ -187,7 +197,13 @@ export function TradingChart({
           }
         }
       });
-  }, [tileBars, allCandles, currentIndex, preloadCount, activeIndicators]);
+  }, [tileBars, allCandles, currentIndex, preloadCount, activeIndicators, chartStyle]);
+
+  // Synchronize TradingView Price Scale Modes (Auto, Log, %, Inverted)
+  useEffect(() => {
+    if (!chartManagerRef.current) return;
+    chartManagerRef.current.applyPriceScaleMode(priceScaleMode);
+  }, [priceScaleMode]);
 
   // Synchronize price lines for Open Positions and Pending Orders
   useEffect(() => {
@@ -272,7 +288,19 @@ export function TradingChart({
       )}
 
       {/* Main Chart Container */}
-      <div className="flex-1 relative overflow-hidden">
+      <div
+        onContextMenu={(e) => {
+          e.preventDefault();
+          const rect = containerRef.current?.getBoundingClientRect();
+          const y = e.clientY - (rect?.top || 0);
+          const price =
+            chartManagerRef.current?.coordinateToPrice(y) ||
+            tileBars[tileBars.length - 1]?.close ||
+            0;
+          setContextMenu({ x: e.clientX, y: e.clientY, price });
+        }}
+        className="flex-1 relative overflow-hidden"
+      >
         {!isMultiChart && <ChartLegend symbolObj={symbolObj} />}
         {(!isMultiChart || isTileFocused) && <OnChartTradingWidget />}
         <div ref={containerRef} className="w-full h-full" />
@@ -286,6 +314,17 @@ export function TradingChart({
           width={chartDimensions.width}
           height={chartDimensions.height}
         />
+        <PriceScaleControls />
+
+        {contextMenu && (
+          <ChartContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            price={contextMenu.price}
+            chartManager={chartManagerRef.current}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
       </div>
     </div>
   );

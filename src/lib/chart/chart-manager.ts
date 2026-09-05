@@ -3,9 +3,13 @@ import {
   CandlestickSeries,
   HistogramSeries,
   LineSeries,
+  BarSeries,
+  AreaSeries,
+  BaselineSeries,
   ColorType,
   CrosshairMode,
   LineStyle,
+  PriceScaleMode,
   createSeriesMarkers,
 } from 'lightweight-charts';
 import type {
@@ -132,6 +136,47 @@ export class ChartManager {
         minMove,
       },
     });
+  }
+
+  applyPriceScaleMode(options: {
+    autoScale?: boolean;
+    logScale?: boolean;
+    percentageScale?: boolean;
+    inverted?: boolean;
+  }): void {
+    let mode = PriceScaleMode.Normal;
+    if (options.logScale) {
+      mode = PriceScaleMode.Logarithmic;
+    } else if (options.percentageScale) {
+      mode = PriceScaleMode.Percentage;
+    }
+
+    this.chart.priceScale('right').applyOptions({
+      autoScale: options.autoScale ?? true,
+      mode,
+      invertScale: options.inverted ?? false,
+    });
+  }
+
+  resetPriceScale(): void {
+    this.chart.priceScale('right').applyOptions({
+      autoScale: true,
+      mode: PriceScaleMode.Normal,
+      invertScale: false,
+    });
+    this.chart.timeScale().fitContent();
+  }
+
+  takeScreenshot(): string | null {
+    try {
+      const canvas = (this.chart as unknown as { takeScreenshot?: () => HTMLCanvasElement }).takeScreenshot?.();
+      if (canvas) {
+        return canvas.toDataURL('image/png');
+      }
+    } catch (e) {
+      console.error('Failed to capture chart screenshot:', e);
+    }
+    return null;
   }
 
   setData(candles: CandlestickData<Time>[], volumes?: HistogramData<Time>[]): void {

@@ -19,6 +19,23 @@ export type DrawingTool =
 
 export type ChartLayout = '1x1' | '1x2' | '2x1' | '2x2';
 
+export type ChartStyle =
+  | 'candlestick'
+  | 'bar'
+  | 'line'
+  | 'area'
+  | 'baseline'
+  | 'heikin-ashi';
+
+export type MagnetMode = 'off' | 'weak' | 'strong';
+
+export interface PriceScaleModeConfig {
+  autoScale: boolean;
+  logScale: boolean;
+  percentageScale: boolean;
+  inverted: boolean;
+}
+
 export interface ChartTileConfig {
   id: string;
   symbol: string;

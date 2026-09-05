@@ -20,6 +20,11 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Magnet,
+  Lock,
+  Unlock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { useChartStore } from '@/store/chart-store';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -54,6 +59,18 @@ export function FloatingToolbar({ className }: FloatingToolbarProps) {
   const setActiveTool = useChartStore((s) => s.setActiveTool);
   const drawings = useChartStore((s) => s.drawings);
   const clearDrawings = useChartStore((s) => s.clearDrawings);
+  const magnetMode = useChartStore((s) => s.magnetMode);
+  const setMagnetMode = useChartStore((s) => s.setMagnetMode);
+  const areDrawingsLocked = useChartStore((s) => s.areDrawingsLocked);
+  const toggleLockDrawings = useChartStore((s) => s.toggleLockDrawings);
+  const areDrawingsHidden = useChartStore((s) => s.areDrawingsHidden);
+  const toggleHideDrawings = useChartStore((s) => s.toggleHideDrawings);
+
+  const cycleMagnet = () => {
+    if (magnetMode === 'off') setMagnetMode('weak');
+    else if (magnetMode === 'weak') setMagnetMode('strong');
+    else setMagnetMode('off');
+  };
 
   return (
     <div className={cn('absolute left-2 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-0.5', className)}>
@@ -95,6 +112,69 @@ export function FloatingToolbar({ className }: FloatingToolbarProps) {
               </Tooltip>
             );
           })}
+
+          <div className="w-4 h-px bg-[#252d40] my-0.5" />
+
+          {/* Magnet Mode */}
+          <Tooltip>
+            <TooltipTrigger
+              onClick={cycleMagnet}
+              className={cn(
+                'w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer relative',
+                magnetMode === 'weak'
+                  ? 'bg-blue-600/25 text-blue-400 border border-blue-500/40'
+                  : magnetMode === 'strong'
+                  ? 'bg-amber-600/25 text-amber-400 border border-amber-500/40'
+                  : 'text-gray-500 hover:bg-[#161c2b] hover:text-gray-200'
+              )}
+            >
+              <Magnet className="w-3.5 h-3.5" />
+              {magnetMode !== 'off' && (
+                <span className="absolute -bottom-0.5 -right-0.5 text-[8px] font-bold uppercase leading-none px-0.5 rounded bg-[#161f33] text-gray-300">
+                  {magnetMode === 'weak' ? 'W' : 'S'}
+                </span>
+              )}
+            </TooltipTrigger>
+            <TooltipContent side="right" className="bg-[#111827] border-[#1e2535] text-gray-200 font-mono text-[11px] z-50">
+              <p>Magnet Mode: <span className="capitalize font-bold text-blue-400">{magnetMode}</span> (Snap to OHLC)</p>
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Lock Drawings */}
+          <Tooltip>
+            <TooltipTrigger
+              onClick={toggleLockDrawings}
+              className={cn(
+                'w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer',
+                areDrawingsLocked
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                  : 'text-gray-500 hover:bg-[#161c2b] hover:text-gray-200'
+              )}
+            >
+              {areDrawingsLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+            </TooltipTrigger>
+            <TooltipContent side="right" className="bg-[#111827] border-[#1e2535] text-gray-200 font-mono text-[11px] z-50">
+              <p>{areDrawingsLocked ? 'Unlock All Drawings' : 'Lock All Drawings'}</p>
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Hide Drawings */}
+          <Tooltip>
+            <TooltipTrigger
+              onClick={toggleHideDrawings}
+              className={cn(
+                'w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer',
+                areDrawingsHidden
+                  ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                  : 'text-gray-500 hover:bg-[#161c2b] hover:text-gray-200'
+              )}
+            >
+              {areDrawingsHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </TooltipTrigger>
+            <TooltipContent side="right" className="bg-[#111827] border-[#1e2535] text-gray-200 font-mono text-[11px] z-50">
+              <p>{areDrawingsHidden ? 'Show All Drawings' : 'Hide All Drawings'}</p>
+            </TooltipContent>
+          </Tooltip>
 
           {drawings.length > 0 && (
             <>

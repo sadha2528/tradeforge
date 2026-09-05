@@ -23,6 +23,11 @@ import {
   Columns2,
   Rows2,
   Grid2X2,
+  Camera,
+  Scale,
+  CandlestickChart,
+  LineChart,
+  Check,
 } from 'lucide-react';
 import { useChartStore } from '@/store/chart-store';
 import { useReplayStore } from '@/store/replay-store';
@@ -35,8 +40,10 @@ import { SymbolSelectorModal } from '@/components/modals/SymbolSelectorModal';
 import { IndicatorsModal } from '@/components/modals/IndicatorsModal';
 import { KeyboardShortcutsModal } from '@/components/modals/KeyboardShortcutsModal';
 import { SessionManagerModal } from '@/components/modals/SessionManagerModal';
+import { CompareModal } from '@/components/modals/CompareModal';
 import { cn } from '@/lib/utils';
 import type { Timeframe, Symbol } from '@/types/market-data';
+import type { ChartStyle } from '@/types/chart';
 import { TIMEFRAMES } from '@/config/constants';
 import { formatCurrency } from '@/lib/utils/formatting';
 
@@ -46,6 +53,8 @@ export function SessionBar() {
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
   const [isOrderFlowMenuOpen, setIsOrderFlowMenuOpen] = useState(false);
+  const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
+  const [isStyleMenuOpen, setIsStyleMenuOpen] = useState(false);
   const [currentSymbolObj, setCurrentSymbolObj] = useState<Symbol | null>(null);
 
   const activeSymbol = useChartStore((s) => s.activeSymbol);
@@ -53,6 +62,9 @@ export function SessionBar() {
   const setActiveTimeframe = useChartStore((s) => s.setActiveTimeframe);
   const layout = useChartStore((s) => s.layout);
   const setLayout = useChartStore((s) => s.setLayout);
+  const chartStyle = useChartStore((s) => s.chartStyle);
+  const setChartStyle = useChartStore((s) => s.setChartStyle);
+  const compareSymbol = useChartStore((s) => s.compareSymbol);
 
   const showFootprint = useChartStore((s) => s.showFootprint);
   const showVolumeProfile = useChartStore((s) => s.showVolumeProfile);
@@ -149,6 +161,63 @@ export function SessionBar() {
             </button>
           ))}
         </div>
+
+        {/* ── CHART STYLE SELECTOR ── */}
+        <div className="relative shrink-0">
+          <button
+            onClick={() => setIsStyleMenuOpen(!isStyleMenuOpen)}
+            title="Chart Type (Candlesticks, Bars, Line, Area, Heikin-Ashi)"
+            className="flex items-center gap-1 h-7 px-2 bg-[#0c1018] border border-[#1e2535] rounded-lg text-[11px] font-mono font-semibold text-gray-300 hover:text-white hover:border-[#252d42] transition cursor-pointer"
+          >
+            <CandlestickChart className="w-3.5 h-3.5 text-blue-400" />
+            <span className="capitalize hidden xl:inline">{chartStyle.replace('-', ' ')}</span>
+            <ChevronDown className="w-3 h-3 text-gray-500" />
+          </button>
+
+          {isStyleMenuOpen && (
+            <div className="absolute top-full left-0 mt-1 w-44 bg-[#0f1422] border border-[#202d48] rounded-xl shadow-2xl p-1.5 z-50 text-xs font-mono space-y-1">
+              {[
+                { id: 'candlestick', label: 'Candlesticks' },
+                { id: 'bar', label: 'Bars (OHLC)' },
+                { id: 'line', label: 'Line' },
+                { id: 'area', label: 'Area' },
+                { id: 'heikin-ashi', label: 'Heikin-Ashi' },
+              ].map((st) => (
+                <button
+                  key={st.id}
+                  onClick={() => {
+                    setChartStyle(st.id as ChartStyle);
+                    setIsStyleMenuOpen(false);
+                  }}
+                  className={cn(
+                    'w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition cursor-pointer text-[11px]',
+                    chartStyle === st.id
+                      ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30 font-bold'
+                      : 'text-gray-300 hover:bg-[#161f33]'
+                  )}
+                >
+                  <span>{st.label}</span>
+                  {chartStyle === st.id && <Check className="w-3 h-3 text-blue-400" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── COMPARE BENCHMARK BUTTON ── */}
+        <button
+          onClick={() => setIsCompareModalOpen(true)}
+          title="Compare with another benchmark"
+          className={cn(
+            'flex items-center gap-1 h-7 px-2 rounded-lg border text-[11px] font-mono font-semibold transition cursor-pointer shrink-0',
+            compareSymbol
+              ? 'bg-blue-600/20 text-blue-300 border-blue-500/40 font-bold'
+              : 'bg-[#0c1018] border-[#1e2535] text-gray-400 hover:text-white hover:border-[#252d42]'
+          )}
+        >
+          <Scale className="w-3.5 h-3.5 text-blue-400" />
+          <span className="hidden xl:inline">{compareSymbol ? `vs ${compareSymbol}` : 'Compare'}</span>
+        </button>
 
         {/* ── SESSION DATE DISPLAY ── */}
         <div className="flex items-center gap-1.5 h-7 px-2.5 bg-[#0c1018] border border-[#1e2535] rounded-lg font-mono text-[11px] text-gray-400 shrink-0 hidden md:flex">
@@ -366,6 +435,23 @@ export function SessionBar() {
             {showRightSidebar ? <PanelRightClose className="w-3.5 h-3.5" /> : <PanelRightOpen className="w-3.5 h-3.5" />}
           </button>
 
+          {/* Save Snapshot / Camera */}
+          <button
+            onClick={() => {
+              const canvas = document.querySelector('canvas') as HTMLCanvasElement;
+              if (canvas) {
+                const a = document.createElement('a');
+                a.href = canvas.toDataURL('image/png');
+                a.download = `tradeforge-${activeSymbol}-${Date.now()}.png`;
+                a.click();
+              }
+            }}
+            title="Save Chart Snapshot (PNG)"
+            className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition cursor-pointer"
+          >
+            <Camera className="w-3.5 h-3.5" />
+          </button>
+
           {/* Fullscreen */}
           <button
             onClick={toggleFullscreen}
@@ -391,6 +477,7 @@ export function SessionBar() {
       <IndicatorsModal isOpen={isIndicatorsModalOpen} onClose={() => setIsIndicatorsModalOpen(false)} />
       <KeyboardShortcutsModal isOpen={isShortcutsModalOpen} onClose={() => setIsShortcutsModalOpen(false)} />
       <SessionManagerModal isOpen={isSessionModalOpen} onClose={() => setIsSessionModalOpen(false)} />
+      <CompareModal isOpen={isCompareModalOpen} onClose={() => setIsCompareModalOpen(false)} />
     </>
   );
 }

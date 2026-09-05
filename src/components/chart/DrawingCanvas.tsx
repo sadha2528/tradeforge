@@ -7,6 +7,7 @@ import { useReplayStore } from '@/store/replay-store';
 import { marketDataService } from '@/lib/market-data/market-data-service';
 import { ChartManager } from '@/lib/chart/chart-manager';
 import { formatCurrency, formatPnL, formatDuration } from '@/lib/utils/formatting';
+import { snapToCandleOHLC } from '@/lib/chart/magnet';
 import type { Drawing, DrawingTool, DrawingPoint } from '@/types/chart';
 import type { Symbol } from '@/types/market-data';
 import type { Trade } from '@/types/trading';
@@ -66,27 +67,35 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
   const deleteDrawing = useChartStore((s) => s.deleteDrawing);
   const selectedDrawingId = useChartStore((s) => s.selectedDrawingId);
   const setSelectedDrawingId = useChartStore((s) => s.setSelectedDrawingId);
+  const magnetMode = useChartStore((s) => s.magnetMode);
+  const areDrawingsLocked = useChartStore((s) => s.areDrawingsLocked);
+  const areDrawingsHidden = useChartStore((s) => s.areDrawingsHidden);
 
   const positions = useTradingStore((s) => s.positions);
   const closedTrades = useTradingStore((s) => s.closedTrades);
   const updateStopLossTakeProfit = useTradingStore((s) => s.updateStopLossTakeProfit);
 
   const jumpToTimestamp = useReplayStore((s) => s.jumpToTimestamp);
+  const allCandles = useReplayStore((s) => s.allCandles);
+  const currentIndex = useReplayStore((s) => s.currentIndex);
+  const preloadCount = useReplayStore((s) => s.preloadCount);
 
   useEffect(() => {
     marketDataService.getSymbol(activeSymbol).then(setSymbolObj);
   }, [activeSymbol]);
 
-  // Convert pixel (x, y) on canvas to (timestamp, price) using ChartManager
+  // Convert pixel (x, y) on canvas to (timestamp, price) using ChartManager, with optional Magnet snapping
   const getCoordinatesFromPixel = useCallback(
     (x: number, y: number): DrawingPoint | null => {
       if (!chartManager) return null;
       const price = chartManager.coordinateToPrice(y);
       const time = chartManager.coordinateToTime(x);
       if (price === null || time === null) return null;
-      return { time, price };
+      const rawPt: DrawingPoint = { time, price };
+      const visibleCandles = allCandles.slice(0, preloadCount + currentIndex + 1);
+      return snapToCandleOHLC(rawPt, magnetMode, visibleCandles, chartManager);
     },
-    [chartManager]
+    [chartManager, magnetMode, allCandles, preloadCount, currentIndex]
   );
 
   // Convert (timestamp, price) to pixel (x, y) using ChartManager
@@ -196,9 +205,10 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
     });
 
     // 2. Draw Committed Drawings
-    drawings.forEach((d) => {
-      if (!d.visible) return;
-      const isSelected = selectedDrawingId === d.id;
+    if (!areDrawingsHidden) {
+      drawings.forEach((d) => {
+        if (!d.visible) return;
+        const isSelected = selectedDrawingId === d.id;
       ctx.strokeStyle = d.color || '#3b82f6';
       ctx.fillStyle = d.fillColor || 'rgba(59, 130, 246, 0.15)';
       ctx.lineWidth = isSelected ? (d.lineWidth || 2) + 1 : d.lineWidth || 2;
@@ -456,6 +466,7 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
       }
       ctx.setLineDash([]);
     }
+    }
   }, [
     chartManager,
     drawings,
@@ -465,6 +476,7 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
     hoverPoint,
     activeTool,
     selectedDrawingId,
+    areDrawingsHidden,
     width,
     height,
     symbolObj,
@@ -485,6 +497,7 @@ export function DrawingCanvas({ chartManager, width, height }: DrawingCanvasProp
     if (!pt) return;
 
     if (activeTool === 'delete') {
+      if (areDrawingsLocked) return;
       for (const d of drawings) {
         if (d.points.length > 0) {
           const dPt = getPixelFromCoordinates(d.points[0]);
